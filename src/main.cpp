@@ -203,6 +203,193 @@ void util_save_cfg() {
 
 
 /******************************************************************************************************
+ * WALLE
+*******************************************************************************************************/
+
+
+// ------------------------------------------------------------------
+// 		QUEUE ANIMATIONS
+// ------------------------------------------------------------------
+void queueAnimation(const int seq[][SERVOS+1], int len) {
+	for (int i = 0; i < len; i++) {
+		for (int j = 0; j < SERVOS+1; j++) {
+			queue.push(seq[i][j]);
+		}
+	}
+}
+
+
+
+// -------------------------------------------------------------------
+// 		SEQUENCE AND GENERATE ANIMATIONS
+// -------------------------------------------------------------------
+void manageAnimations() {
+	// If we are running an animation
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	if ((queue.size() >= SERVOS+1) && (animeTimer <= millis())) {
+		// Set the next waypoint time
+		animeTimer = millis() + queue.pop();
+
+		// Set all the joint positions
+		for (int i = 0; i < SERVOS; i++) {
+			int value = queue.pop();
+
+			// Scale the positions using the servo calibration values
+			setpos[i] = int(value * 0.01 * (preset[i][1] - preset[i][0]) + preset[i][0]);
+		}
+
+	// If we are in autonomous mode, but there are no movements queued, generate new movements
+	} else if (autoMode && (queue.size() < SERVOS+1) && (animeTimer <= millis())) {
+
+		// For each of the servos
+		for (int i = 0; i < SERVOS; i++) {
+
+			// Randomly determine whether or not to update the servo
+			if (mgos_rand_range(0, 2) == 1) {
+
+				// For most of the servo motors
+				if (i == 0 || i == 1 || i == 2 || i == 5 || i == 6) {
+
+					// Randomly determine the new position
+					unsigned int min = preset[i][0];
+					unsigned int max = preset[i][1];
+					if (min > max) {
+						min = max;
+						max = preset[i][0];
+					}
+					
+					setpos[i] = mgos_rand_range(min, max+1);
+
+				// Since the eyes should work together, only look at one of them
+				} else if (i == 3) {
+
+					int midPos1 = int((preset[i][1] - preset[i][0])*0.4 + preset[i][0]);
+					int midPos2 = int((preset[i+1][1] - preset[i+1][0])*0.4 + preset[i+1][0]);
+
+					// Determine which type of eye movement to do
+					// Both eye move downwards
+					if (mgos_rand_range(0, 2) == 1) {
+						setpos[i] = mgos_rand_range(midPos1, preset[i][0]);
+						float multiplier = (setpos[i] - midPos1) / float(preset[i][0] - midPos1);
+						setpos[i+1] = ((1 - multiplier) * (midPos2 - preset[i+1][0])) + preset[i+1][0];
+
+					// Both eyes move in opposite directions
+					} else {
+						setpos[i] = mgos_rand_range(midPos1, preset[i][0]);
+						float multiplier = (setpos[i] - preset[i][1]) / float(preset[i][0] - preset[i][1]);
+						setpos[i+1] = (multiplier * (preset[i+1][1] - preset[i+1][0])) + preset[i+1][0];
+					}
+				}
+
+			}
+		}
+
+		// Finally, figure out the amount of time until the next movement should be done
+		animeTimer = millis() + mgos_rand_range(500, 3000);
+
+	}
+}
+
+
+// -------------------------------------------------------------------
+// 		MANAGE THE MOVEMENT OF THE SERVO MOTORS
+// -------------------------------------------------------------------
+void manageServos(float dt) {
+	// SERVO MOTORS
+	// -  -  -  -  -  -  -  -  -  -  -  -  -
+	bool moving = false;
+	for (int i = 0; i < SERVOS; i++) {
+
+		float posError = setpos[i] - curpos[i];
+
+		// If position error is above the threshold
+		if (abs(posError) > THRESHOLD && (setpos[i] != -1)) {
+
+			mgos_gpio_write(SR_OE, LOW);
+			moving = true;
+
+			// Determine motion direction
+			bool dir = true;
+			if (posError < 0) dir = false;
+
+			// Determine whether to accelerate or decelerate
+			float acceleration = accell[i];
+			if ((0.5 * curvel[i] * curvel[i] / accell[i]) > abs(posError)) acceleration = -accell[i];
+
+			// Update the current velocity
+			if (dir) curvel[i] += acceleration * dt / 1000.0;
+			else curvel[i] -= acceleration * dt / 1000.0;
+
+			// Limit Velocity
+			if (curvel[i] > maxvel[i]) curvel[i] = maxvel[i];
+			if (curvel[i] < -maxvel[i]) curvel[i] = -maxvel[i];
+			
+			float dP = curvel[i] * dt / 1000.0;
+
+			if (abs(dP) < abs(posError)) curpos[i] += dP;
+			else curpos[i] = setpos[i];
+
+      //Serial.printf("Mandando para %d o comando %d\n", i, curpos[i]);
+			mgos_PWMServoDriver_setPWM(pwm, i, 0, curpos[i]);
+
+		} else {
+			curvel[i] = 0;
+		}
+	}
+
+	// Disable servos if robot is not moving
+	// This prevents the motors from overheating
+	if (moving) motorTimer = millis() + MOTOR_OFF;
+	else if (millis() > motorTimer) mgos_gpio_write(SR_OE, HIGH);
+}
+
+
+// -------------------------------------------------------------------
+// 		MANAGE THE MOVEMENT OF THE MAIN MOTORS
+// -------------------------------------------------------------------
+void manageMotors(float dt) {
+  
+	// Update Main Motor Values
+	setpos[7] = moveVal - turnVal - turnOff;
+	setpos[8] = moveVal + turnVal + turnOff;
+
+	// MAIN DRIVING MOTORS
+	// -  -  -  -  -  -  -  -  -  -  -  -  -
+	for (int i = SERVOS; i < SERVOS + 2; i++) {
+
+		float velError = setpos[i] - curvel[i];
+
+		// If velocity error is above the threshold
+		if (abs(velError) > THRESHOLD && (setpos[i] != -1)) {
+
+			// Determine whether to accelerate or decelerate
+			float acceleration = accell[i];
+			if (setpos[i] < curvel[i] && curvel[i] >= 0) acceleration = -accell[i];
+			else if (setpos[i] < curvel[i] && curvel[i] < 0) acceleration = -accell[i]; 
+			else if (setpos[i] > curvel[i] && curvel[i] < 0) acceleration = accell[i];
+
+			// Update the current velocity
+			float dV = acceleration * dt / 1000.0;
+			if (abs(dV) < abs(velError)) curvel[i] += dV;
+			else curvel[i] = setpos[i];
+		} else {
+			curvel[i] = setpos[i];
+		}
+    
+		
+		// Limit Velocity
+		if (curvel[i] > maxvel[i]) curvel[i] = maxvel[i];
+		if (curvel[i] < -maxvel[i]) curvel[i] = -maxvel[i];
+	}
+
+	// Update motor speeds
+	//motorL.setSpeed(curvel[SERVOS]);
+	//motorR.setSpeed(curvel[SERVOS+1]);
+}
+
+
+
+/******************************************************************************************************
  * NETWORK STATUS
 *******************************************************************************************************/
 
