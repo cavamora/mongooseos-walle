@@ -15,6 +15,8 @@
 
 #define TOHEX(Y) (Y>='0'&&Y<='9'?Y-'0':Y-'A'+10)
 
+#define UART_NO 0
+
 // Define the pin-mapping
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 #define DIR_L 12           // Motor direction pins
@@ -47,6 +49,7 @@
 
 //TIMERS
 mgos_timer_id ptr_timer_led_blinker;
+mgos_timer_id ptr_timer_loop;
 
 // Instantiate objects
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -329,7 +332,7 @@ void manageServos(float dt) {
 			if (abs(dP) < abs(posError)) curpos[i] += dP;
 			else curpos[i] = setpos[i];
 
-      //Serial.printf("Mandando para %d o comando %d\n", i, curpos[i]);
+      LOG(LL_INFO, ("Mandando comando para %d ", i));
 			mgos_PWMServoDriver_setPWM(pwm, i, 0, curpos[i]);
 
 		} else {
@@ -589,6 +592,180 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
 
 
 
+/******************************************************************************************************
+ * USB UART
+*******************************************************************************************************/
+
+
+
+// -------------------------------------------------------------------
+// 		EVALUATE INPUT FROM SERIAL
+// -------------------------------------------------------------------
+void evaluateSerial() {
+	// Evaluate integer number in the serial buffer
+	int number = atoi(serialBuffer);
+
+	// Motor Inputs and Offsets
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	if      (firstChar == 'X' && number >= -100 && number <= 100) turnVal = int(number * 2.55); 		// Forward/reverse control
+	else if (firstChar == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 2.55); 		// Left/right control
+	else if (firstChar == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
+	else if (firstChar == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
+
+	// Animations
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (firstChar == 'A' && number == 0) queueAnimation(softSeq, SOFT_LEN);
+	else if (firstChar == 'A' && number == 1) queueAnimation(bootSeq, BOOT_LEN);
+	else if (firstChar == 'A' && number == 2) queueAnimation(inquSeq, INQU_LEN);
+
+	// Autonomous servo mode
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (firstChar == 'M' && number == 0) autoMode = false;
+	else if (firstChar == 'M' && number == 1) autoMode = true;
+
+	// Manual Movements with WASD
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (firstChar == 'w') {		// Forward movement
+		moveVal = pwmspeed;
+		turnVal = 0;
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
+	else if (firstChar == 'q') {		// Stop movement
+		moveVal = 0;
+		turnVal = 0;
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
+	else if (firstChar == 's') {		// Backward movement
+		moveVal = -pwmspeed;
+		turnVal = 0;
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
+	else if (firstChar == 'a') {		// Drive & look left
+		moveVal = 0;
+		turnVal = -pwmspeed;
+		setpos[0] = preset[0][0];
+	}
+	else if (firstChar == 'd') {   		// Drive & look right
+		moveVal = 0;
+		turnVal = pwmspeed;
+		setpos[0] = preset[0][1];
+	}
+
+	// Manual Eye Movements
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (firstChar == 'j') {		// Left head tilt
+		setpos[4] = preset[4][0];
+		setpos[3] = preset[3][1];
+	}
+	else if (firstChar == 'l') {		// Right head tilt
+		setpos[4] = preset[4][1];
+		setpos[3] = preset[3][0];
+	}
+	else if (firstChar == 'i') {		// Sad head
+		setpos[4] = preset[4][0];
+		setpos[3] = preset[3][0];
+	}
+	else if (firstChar == 'k') {		// Neutral head
+		setpos[4] = int(0.4 * (preset[4][1] - preset[4][0]) + preset[4][0]);
+		setpos[3] = int(0.4 * (preset[3][1] - preset[3][0]) + preset[3][0]);
+	}
+
+	// Head movement
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (firstChar == 'f') {		// Head up
+		setpos[1] = preset[1][0];
+		setpos[2] = (preset[2][1] + preset[2][0])/2;
+	}
+	else if (firstChar == 'g') {		// Head forward
+		setpos[1] = preset[1][1];
+		setpos[2] = preset[2][0];
+	}
+	else if (firstChar == 'h') {		// Head down
+		setpos[1] = preset[1][0];
+		setpos[2] = preset[2][0];
+	}
+	
+	// Arm Movements
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (firstChar == 'b') {		// Left arm low, right arm high
+		setpos[5] = preset[5][0];
+		setpos[6] = preset[6][1];
+	}
+	else if (firstChar == 'n') {		// Both arms neutral
+		setpos[5] = (preset[5][0] + preset[5][1]) / 2;
+		setpos[6] = (preset[6][0] + preset[6][1]) / 2;
+	}
+	else if (firstChar == 'm') {		// Left arm high, right arm low
+		setpos[5] = preset[5][1];
+		setpos[6] = preset[6][0];
+	}
+}
+
+
+// -------------------------------------------------------------------
+// 		READ INPUT FROM SERIAL
+// -------------------------------------------------------------------
+void readSerial(char inchar) {
+
+	// If the string has ended, evaluate the serial buffer
+	if (inchar == '\n' || inchar == '\r') {
+
+		if (serialLength > 0) evaluateSerial();
+		serialBuffer[0] = 0;
+		serialLength = 0;
+
+	// Otherwise add to the character to the buffer
+	} else {
+		if (serialLength == 0) firstChar = inchar;
+		else {
+			serialBuffer[serialLength-1] = inchar;
+			serialBuffer[serialLength] = 0;
+		}
+		serialLength++;
+
+		// To prevent overflows, evalute the buffer if it is full
+		if (serialLength == MAX_SERIAL) {
+			evaluateSerial();
+			serialBuffer[0] = 0;
+			serialLength = 0;
+		}
+	}
+}
+
+
+
+/*
+ * Dispatcher can be invoked with any amount of data (even none at all) and
+ * at any time. Here we demonstrate how to process input line by line.
+ */
+static void uart_dispatcher(int uart_no, void *arg) {
+
+  static struct mbuf lb = {0};
+  
+  assert(uart_no == UART_NO);
+  size_t rx_av = mgos_uart_read_avail(uart_no);
+  if (rx_av == 0) return;
+  mgos_uart_read_mbuf(uart_no, &lb, rx_av);
+
+
+
+
+  LOG(LL_INFO, ("UART%d> Received %d bytes", uart_no, (int) lb.len));
+  LOG(LL_INFO, ("UART%d> '%.*s'", uart_no, (int) lb.len, lb.buf));
+
+
+  for(int i=0; i<(int)lb.len; i++) {
+    readSerial(lb.buf[i]);
+    manageAnimations();
+  }
+
+
+  mbuf_remove(&lb, lb.len);
+
+  /* Finally, remove the line data from the buffer. */
+  (void) arg;
+}
+
 
 
 /******************************************************************************************************
@@ -606,6 +783,33 @@ static void gpio_int_handler_flash(int pin, void *arg) {
   (void) pin;
 }
 
+static void loop(void *arg) {
+  
+  // Read any new serial messages
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	//if (Serial.available() > 0){
+	//	readSerial();
+	//}
+
+
+	// Load or generate new animations
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	manageAnimations();
+
+	// Move Servos and wheels at regular time intervals
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	
+  unsigned long newTime = micros();
+  float dt = (newTime - lastTime) / 1000.0;
+  lastTime = newTime;
+
+  manageServos(dt);
+  manageMotors(dt);
+
+
+  (void) arg;
+}
+
 
 /******************************************************************************************************
  * STARTUP
@@ -613,6 +817,16 @@ static void gpio_int_handler_flash(int pin, void *arg) {
 
 
 enum mgos_app_init_result mgos_app_init(void) {
+
+  struct mgos_uart_config ucfg;
+  mgos_uart_config_set_defaults(UART_NO, &ucfg);
+  /*
+  * At this point it is possible to adjust baud rate, pins and other settings.
+  * 115200 8-N-1 is the default mode
+  */
+  mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL /* arg */);
+  mgos_uart_set_rx_enabled(UART_NO, true);
+
 
 
   /* Network connectivity events */
@@ -641,6 +855,8 @@ enum mgos_app_init_result mgos_app_init(void) {
 
 	// Move servos to known starting positions
 	queueAnimation(softSeq, SOFT_LEN);
+
+  ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
 
   LOG(LL_INFO, ("INIT COM SUCESSO"));
   return MGOS_APP_INIT_SUCCESS;
