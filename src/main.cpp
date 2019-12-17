@@ -2,6 +2,9 @@
 #include "mgos.h"
 #include "common/json_utils.h"
 #include "mgos_blynk.h"
+#include "mgos_arduino_PWMServoDriver.h"
+
+#include "Queue.hpp"
 
 
 /******************************************************************************************************
@@ -10,18 +13,27 @@
 
 #define STATUS_LED_GPIO                   2
 
-#define SKY_CMD_GET_INFO_DATA_SIZE        38
-
-#define SKY_CMD_GET_INFO_SERIAL_ID_POS    35
-#define SKY_SERIAL_ID_SIZE                17
-
-#define SKY_CMD_GET_INFO_SMART_CARD_POS   14
-#define SKY_SMART_CARD_SIZE               12
-
-#define SKY_CMD_GET_INFO_RECV_ID_POS      2
-#define SKY_RECV_ID_SIZE                  12
-
 #define TOHEX(Y) (Y>='0'&&Y<='9'?Y-'0':Y-'A'+10)
+
+// Define the pin-mapping
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+#define DIR_L 12           // Motor direction pins
+#define DIR_R 13
+#define PWM_L  3           // Motor PWM pins
+#define PWM_R 11
+#define BRK_L  9           // Motor brake pins
+#define BRK_R  8
+#define SR_OE 10           // Servo shield output enable pin
+
+
+// Define other constants
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+#define FREQUENCY 10       // Time in milliseconds of how often to update servo and motor positions
+#define SERVOS 7           // Number of servo motors
+#define THRESHOLD 1        // The minimum error which the dynamics controller tries to achieve
+#define MOTOR_OFF 6000 	   // Turn servo motors off after 6 seconds
+#define MAX_SERIAL 5       // Maximum number of characters that can be received
+
 
 
 /******************************************************************************************************
@@ -30,11 +42,111 @@
 
 
 //BUFFER
-uint8_t buffer[32];
-char buffer_out[256];
+//uint8_t buffer[32];
+//char buffer_out[256];
 
 //TIMERS
 mgos_timer_id ptr_timer_led_blinker;
+
+// Instantiate objects
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+// Servo shield controller class - assumes default address 0x40
+Adafruit_PWMServoDriver *pwm = mgos_PWMServoDriver_create();
+
+// Set up motor controller classes
+//MotorController motorL(DIR_L, PWM_L, BRK_L, false);
+//MotorController motorR(DIR_R, PWM_R, BRK_R, false);
+
+// Queue for animations
+Queue <int> queue(400);
+
+
+// Motor Control Variables
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+int pwmspeed = 255;
+int moveVal = 0;
+int turnVal = 0;
+int turnOff = 0;
+
+
+// Runtime Variables
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+unsigned long lastTime = 0;
+unsigned long animeTimer = 0;
+unsigned long motorTimer = 0;
+unsigned long updateTimer = 0;
+bool autoMode = false;
+
+
+// Serial Parsing
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+char firstChar;
+char serialBuffer[MAX_SERIAL];
+uint8_t serialLength = 0;
+
+
+// ****** SERVO MOTOR CALIBRATION *********************
+// Servo Positions:  Low,High
+int preset[][2] =  {{410, 125},   // head rotation
+                    {205, 538},   // neck top
+                    {140, 450},   // neck bottom
+                    {485, 230},   // eye right
+                    {274, 495},   // eye left
+                    {355, 137},   // arm left
+                    {188, 420}};  // arm right
+// *****************************************************
+
+
+// Servo Control - Position, Velocity, Acceleration
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+// Servo Pins:	     0,   1,   2,   3,   4,   5,   6,   -,   -
+// Joint Name:	  head,necT,necB,eyeR,eyeL,armL,armR,motL,motR
+float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
+float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
+float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current velocity (units/sec)
+float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
+float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
+
+
+// Animation Presets 
+// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+// (Time is in milliseconds)
+// (Servo values are between 0 to 100, use -1 to disable the servo)
+#define SOFT_LEN 7
+// Starting Sequence:              time,head,necT,necB,eyeR,eyeL,armL,armR
+const int softSeq[][SERVOS+1] =  {{ 200,  50,  69,  29,   1,   1,  41,  41},
+                                  { 200,  50,  70,  29,   1,   1,  41,  41},
+                                  { 200,  50,  70,  30,   1,   1,  41,  41},
+                                  { 200,  50,  70,  30,   0,   1,  41,  41},
+                                  { 200,  50,  70,  30,   0,   0,  41,  41},
+                                  { 200,  50,  70,  30,   0,   0,  40,  41},
+                                  { 200,  50,  70,  30,   0,   0,  40,  40}};
+
+#define BOOT_LEN 9
+// Bootup Eye Sequence:            time,head,necT,necB,eyeR,eyeL,armL,armR
+const int bootSeq[][SERVOS+1] =  {{2000,  50,  68,   0,  40,  40,  40,  40},
+                                  { 700,  50,  68,   0,  40,   0,  40,  40},
+                                  { 700,  50,  68,   0,   0,   0,  40,  40},
+                                  { 700,  50,  68,   0,   0,  40,  40,  40},
+                                  { 700,  50,  68,   0,  40,  40,  40,  40},
+                                  { 400,  50,  68,   0,   0,   0,  40,  40},
+                                  { 400,  50,  68,   0,  40,  40,  40,  40},
+                                  {2000,  50,  85,   0,  40,  40,  40,  40},
+                                  {1000,  50,  85,   0,   0,   0,  40,  40}};
+
+#define INQU_LEN 9
+// Inquisitive Movements:          time,head,necT,necB,eyeR,eyeL,armL,armR
+const int inquSeq[][SERVOS+1] =  {{3000,  48,  60,   0,  35,  45,  60,  59},
+                                  {1500,  48,  60,   0, 100,   0, 100, 100},
+                                  {3000,   0,   0,   0, 100,   0, 100, 100},
+                                  {1500,  48,   0,   0,  40,  40, 100, 100},
+                                  {1500,  48,  60,   0,  45,  35,   0,   0},
+                                  {1500,  34,  44,   0,  14, 100,   0,   0},
+                                  {1500,  48,  60,   0,  35,  45,  60,  59},
+                                  {3000, 100,  60,   0,  40,  40,  60, 100},
+                                  {1500,  48, 100,   0,   0,   0,   0,   0}};
+
+
 
 
 
@@ -42,6 +154,7 @@ mgos_timer_id ptr_timer_led_blinker;
  * FUNCTION DECLARATIONS
 *******************************************************************************************************/
 
+void queueAnimation(const int seq[][SERVOS+1], int len);
 
 
 /******************************************************************************************************
@@ -318,7 +431,6 @@ enum mgos_app_init_result mgos_app_init(void) {
   /* Network connectivity events */
   mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, net_cb, NULL);
 
-
   //botao flash para reset
   mgos_gpio_set_button_handler(0, MGOS_GPIO_PULL_UP, MGOS_GPIO_INT_EDGE_POS, 50, gpio_int_handler_flash, NULL);
 
@@ -329,6 +441,19 @@ enum mgos_app_init_result mgos_app_init(void) {
   mgos_event_add_handler(MGOS_EVENT_CLOUD_DISCONNECTED, cloud_cb, NULL);
 
   blynk_set_handler(blynk_handler, NULL);
+
+  // Output Enable (EO) pin for the servo motors
+  mgos_gpio_set_mode(SR_OE, MGOS_GPIO_MODE_OUTPUT);
+  mgos_gpio_write(SR_OE, HIGH);
+
+	// Communicate with servo shield (Analog servos run at ~60Hz)
+	mgos_PWMServoDriver_begin(pwm);
+	mgos_PWMServoDriver_setPWMFreq(pwm, 60);
+
+	LOG(LL_INFO, ("Starting Program"));
+
+	// Move servos to known starting positions
+	queueAnimation(softSeq, SOFT_LEN);
 
   LOG(LL_INFO, ("INIT COM SUCESSO"));
   return MGOS_APP_INIT_SUCCESS;
