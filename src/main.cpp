@@ -5,6 +5,7 @@
 #include "mgos_arduino_PWMServoDriver.h"
 
 #include "Queue.hpp"
+#include "MotorController.hpp"
 
 
 /******************************************************************************************************
@@ -19,13 +20,15 @@
 
 // Define the pin-mapping
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
-#define DIR_L 12           // Motor direction pins
-#define DIR_R 13
-#define PWM_L  3           // Motor PWM pins
-#define PWM_R 11
-#define BRK_L  9           // Motor brake pins
-#define BRK_R  8
-#define SR_OE 10           // Servo shield output enable pin
+#define IN1_L 12           // Motor direction pins								D6
+#define IN1_R 13															//  D7
+#define IN2_L 14           // Motor brake pins									D5
+#define IN2_R 15															//  D8
+
+#define SR_OE 2  	       // Servo shield output enable pin					D4					
+
+#define PWM_L 7           // Motor PWM pins (on PCA9685)
+#define PWM_R 8
 
 
 // Define other constants
@@ -43,10 +46,6 @@
 *******************************************************************************************************/
 
 
-//BUFFER
-//uint8_t buffer[32];
-//char buffer_out[256];
-
 //TIMERS
 mgos_timer_id ptr_timer_led_blinker;
 mgos_timer_id ptr_timer_loop;
@@ -57,8 +56,8 @@ mgos_timer_id ptr_timer_loop;
 Adafruit_PWMServoDriver *pwm = mgos_PWMServoDriver_create();
 
 // Set up motor controller classes
-//MotorController motorL(DIR_L, PWM_L, BRK_L, false);
-//MotorController motorR(DIR_R, PWM_R, BRK_R, false);
+MotorController motorL(IN1_L, IN2_L, PWM_L, pwm);
+MotorController motorR(IN1_R, IN2_R, PWM_R, pwm);
 
 // Queue for animations
 Queue <int> queue(400);
@@ -78,7 +77,7 @@ unsigned long lastTime = 0;
 unsigned long animeTimer = 0;
 unsigned long motorTimer = 0;
 unsigned long updateTimer = 0;
-bool autoMode = false;
+bool autoMode = mgos_sys_config_get_walle_auto_mode();
 
 
 // Serial Parsing
@@ -158,6 +157,7 @@ const int inquSeq[][SERVOS+1] =  {{3000,  48,  60,   0,  35,  45,  60,  59},
 *******************************************************************************************************/
 
 void queueAnimation(const int seq[][SERVOS+1], int len);
+void evaluateCommand(const char command, int number);
 
 
 /******************************************************************************************************
@@ -332,7 +332,7 @@ void manageServos(float dt) {
 			if (abs(dP) < abs(posError)) curpos[i] += dP;
 			else curpos[i] = setpos[i];
 
-      LOG(LL_INFO, ("Mandando comando para %d ", i));
+      		LOG(LL_INFO, ("Mandando comando para %d ", i));
 			mgos_PWMServoDriver_setPWM(pwm, i, 0, curpos[i]);
 
 		} else {
@@ -385,9 +385,13 @@ void manageMotors(float dt) {
 		if (curvel[i] < -maxvel[i]) curvel[i] = -maxvel[i];
 	}
 
+	if (curvel[SERVOS] > 0 || curvel[SERVOS+1] > 0 ) {
+		LOG(LL_INFO, ("Atualizando Motores: L:%d, R:%d", (int)curvel[SERVOS], (int)curvel[SERVOS+1]));
+	}
+
 	// Update motor speeds
-	//motorL.setSpeed(curvel[SERVOS]);
-	//motorR.setSpeed(curvel[SERVOS+1]);
+	motorL.setSpeed(curvel[SERVOS]);
+	motorR.setSpeed(curvel[SERVOS+1]);
 }
 
 
@@ -535,9 +539,24 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
     
     LOG(LL_INFO, ("blynk_handler. pin:%d val:%d", pin, val));
 
-    //clique do controle
+    //joystick X
     if (pin == 1) {
-      LOG(LL_INFO, ("blynk_handler: clique do controle"));
+      LOG(LL_INFO, ("blynk_handler: clique joystick X"));
+	  evaluateCommand('X', val);
+      
+    }
+
+	//joystick X
+    if (pin == 2) {
+      LOG(LL_INFO, ("blynk_handler: clique joystick X"));
+	  evaluateCommand('Y', val);
+      
+    }
+
+	//joystick X
+    if (pin == 3) {
+      LOG(LL_INFO, ("blynk_handler: off"));
+	  evaluateCommand('Y', val);
       
     }
 
@@ -545,40 +564,12 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
     else if (pin == 50) {
       LOG(LL_INFO, ("blynk_handler: comando do terminal"));
 
-      
-      
-    }
+      char command[256];
+      memset(command, 0, sizeof(command));
+      memcpy(command, &raw_data[11], raw_data_len-11);
 
+	  evaluateCommand(command[0],atoi(command+1));
 
-
-    //2
-    else if (pin == 2) {
-      LOG(LL_INFO, ("blynk_handler: get channel"));
-      
-      
-    }
-
-    //3
-    else if (pin == 3) {
-      
-    }
-
-    //GUIA
-    else if (pin == 11) {
-      if (val == 1) {
-        LOG(LL_INFO, ("blynk_handler: display number --"));
-        
-      }
-    }
-
-    //reset
-    else if (pin == 100) {
-      LOG(LL_INFO, ("blynk_handler: restart"));
-      mgos_system_restart();
-    }
-
-    else {
-      LOG(LL_INFO, ("blynk_handler: comando desconhecido"));
     }
 
 
@@ -601,51 +592,49 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
 // -------------------------------------------------------------------
 // 		EVALUATE INPUT FROM SERIAL
 // -------------------------------------------------------------------
-void evaluateSerial() {
-	// Evaluate integer number in the serial buffer
-	int number = atoi(serialBuffer);
-
+void evaluateCommand(const char command, int number) {
+	
 	// Motor Inputs and Offsets
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	if      (firstChar == 'X' && number >= -100 && number <= 100) turnVal = int(number * 2.55); 		// Forward/reverse control
-	else if (firstChar == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 2.55); 		// Left/right control
-	else if (firstChar == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
-	else if (firstChar == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
+	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 2.55); 		// Forward/reverse control
+	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 2.55); 		// Left/right control
+	else if (command == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
+	else if (command == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
 
 	// Animations
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (firstChar == 'A' && number == 0) queueAnimation(softSeq, SOFT_LEN);
-	else if (firstChar == 'A' && number == 1) queueAnimation(bootSeq, BOOT_LEN);
-	else if (firstChar == 'A' && number == 2) queueAnimation(inquSeq, INQU_LEN);
+	else if (command == 'A' && number == 0) queueAnimation(softSeq, SOFT_LEN);
+	else if (command == 'A' && number == 1) queueAnimation(bootSeq, BOOT_LEN);
+	else if (command == 'A' && number == 2) queueAnimation(inquSeq, INQU_LEN);
 
 	// Autonomous servo mode
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (firstChar == 'M' && number == 0) autoMode = false;
-	else if (firstChar == 'M' && number == 1) autoMode = true;
+	else if (command == 'M' && number == 0) autoMode = false;
+	else if (command == 'M' && number == 1) autoMode = true;
 
 	// Manual Movements with WASD
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (firstChar == 'w') {		// Forward movement
+	else if (command == 'w') {		// Forward movement
 		moveVal = pwmspeed;
 		turnVal = 0;
 		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
 	}
-	else if (firstChar == 'q') {		// Stop movement
+	else if (command == 'q') {		// Stop movement
 		moveVal = 0;
 		turnVal = 0;
 		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
 	}
-	else if (firstChar == 's') {		// Backward movement
+	else if (command == 's') {		// Backward movement
 		moveVal = -pwmspeed;
 		turnVal = 0;
 		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
 	}
-	else if (firstChar == 'a') {		// Drive & look left
+	else if (command == 'a') {		// Drive & look left
 		moveVal = 0;
 		turnVal = -pwmspeed;
 		setpos[0] = preset[0][0];
 	}
-	else if (firstChar == 'd') {   		// Drive & look right
+	else if (command == 'd') {   		// Drive & look right
 		moveVal = 0;
 		turnVal = pwmspeed;
 		setpos[0] = preset[0][1];
@@ -653,49 +642,49 @@ void evaluateSerial() {
 
 	// Manual Eye Movements
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (firstChar == 'j') {		// Left head tilt
+	else if (command == 'j') {		// Left head tilt
 		setpos[4] = preset[4][0];
 		setpos[3] = preset[3][1];
 	}
-	else if (firstChar == 'l') {		// Right head tilt
+	else if (command == 'l') {		// Right head tilt
 		setpos[4] = preset[4][1];
 		setpos[3] = preset[3][0];
 	}
-	else if (firstChar == 'i') {		// Sad head
+	else if (command == 'i') {		// Sad head
 		setpos[4] = preset[4][0];
 		setpos[3] = preset[3][0];
 	}
-	else if (firstChar == 'k') {		// Neutral head
+	else if (command == 'k') {		// Neutral head
 		setpos[4] = int(0.4 * (preset[4][1] - preset[4][0]) + preset[4][0]);
 		setpos[3] = int(0.4 * (preset[3][1] - preset[3][0]) + preset[3][0]);
 	}
 
 	// Head movement
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (firstChar == 'f') {		// Head up
+	else if (command == 'f') {		// Head up
 		setpos[1] = preset[1][0];
 		setpos[2] = (preset[2][1] + preset[2][0])/2;
 	}
-	else if (firstChar == 'g') {		// Head forward
+	else if (command == 'g') {		// Head forward
 		setpos[1] = preset[1][1];
 		setpos[2] = preset[2][0];
 	}
-	else if (firstChar == 'h') {		// Head down
+	else if (command == 'h') {		// Head down
 		setpos[1] = preset[1][0];
 		setpos[2] = preset[2][0];
 	}
 	
 	// Arm Movements
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (firstChar == 'b') {		// Left arm low, right arm high
+	else if (command == 'b') {		// Left arm low, right arm high
 		setpos[5] = preset[5][0];
 		setpos[6] = preset[6][1];
 	}
-	else if (firstChar == 'n') {		// Both arms neutral
+	else if (command == 'n') {		// Both arms neutral
 		setpos[5] = (preset[5][0] + preset[5][1]) / 2;
 		setpos[6] = (preset[6][0] + preset[6][1]) / 2;
 	}
-	else if (firstChar == 'm') {		// Left arm high, right arm low
+	else if (command == 'm') {		// Left arm high, right arm low
 		setpos[5] = preset[5][1];
 		setpos[6] = preset[6][0];
 	}
@@ -710,7 +699,7 @@ void readSerial(char inchar) {
 	// If the string has ended, evaluate the serial buffer
 	if (inchar == '\n' || inchar == '\r') {
 
-		if (serialLength > 0) evaluateSerial();
+		if (serialLength > 0) evaluateCommand(firstChar, atoi(serialBuffer));
 		serialBuffer[0] = 0;
 		serialLength = 0;
 
@@ -725,7 +714,7 @@ void readSerial(char inchar) {
 
 		// To prevent overflows, evalute the buffer if it is full
 		if (serialLength == MAX_SERIAL) {
-			evaluateSerial();
+			evaluateCommand(firstChar, atoi(serialBuffer));
 			serialBuffer[0] = 0;
 			serialLength = 0;
 		}
