@@ -10,7 +10,7 @@
 #ifndef MOTOR_CONTROLLER_HPP
 #define MOTOR_CONTROLLER_HPP
 
-#include "mgos_arduino_PWMServoDriver.h"
+#include "Adafruit_PWMServoDriver.h"
 
 // MOTOR CONTROLLER CLASS
 class MotorController {
@@ -94,7 +94,7 @@ void MotorController::setSpeed(int pwmValue) {
 	}
 	
 	// Send PWM value
-	mgos_PWMServoDriver_setPWM(pwm, pwmPin, 0, abs(pwmValue));
+	pwm->setPWM(pwmPin, 0, abs(pwmValue));
 }
 
 

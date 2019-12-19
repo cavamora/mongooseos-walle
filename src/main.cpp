@@ -2,7 +2,7 @@
 #include "mgos.h"
 #include "common/json_utils.h"
 #include "mgos_blynk.h"
-#include "mgos_arduino_PWMServoDriver.h"
+#include "Adafruit_PWMServoDriver.h"
 
 #include "Queue.hpp"
 #include "MotorController.hpp"
@@ -21,14 +21,17 @@
 // Define the pin-mapping
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 #define IN1_L 12           // Motor direction pins								D6
-#define IN1_R 13															//  D7
 #define IN2_L 14           // Motor brake pins									D5
-#define IN2_R 15															//  D8
+#define PWM_L 8            // Motor PWM pins (on PCA9685)
 
-#define SR_OE 2  	       // Servo shield output enable pin					D4					
+#define IN1_R 13															//  D7
+#define IN2_R 15
+#define PWM_R 7																//  D8
 
-#define PWM_L 7           // Motor PWM pins (on PCA9685)
-#define PWM_R 8
+#define SR_OE -1 	       // Servo shield output enable pin					D4					
+
+
+
 
 
 // Define other constants
@@ -53,7 +56,7 @@ mgos_timer_id ptr_timer_loop;
 // Instantiate objects
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo shield controller class - assumes default address 0x40
-Adafruit_PWMServoDriver *pwm = mgos_PWMServoDriver_create();
+Adafruit_PWMServoDriver *pwm = new Adafruit_PWMServoDriver();
 
 // Set up motor controller classes
 MotorController motorL(IN1_L, IN2_L, PWM_L, pwm);
@@ -103,11 +106,11 @@ int preset[][2] =  {{410, 125},   // head rotation
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo Pins:	     0,   1,   2,   3,   4,   5,   6,   -,   -
 // Joint Name:	  head,necT,necB,eyeR,eyeL,armL,armR,motL,motR
-float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
-float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
-float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current velocity (units/sec)
-float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
-float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
+float curpos[] = { 248, 560, 140, 475, 270, 250, 290,  180,  180};  // Current position (units)
+float setpos[] = { 248, 560, 140, 475, 270, 250, 290,    0,    0};  // Required position (units)
+float curvel[] = {   0,   0,   0,   0,   0,   0,   0,    0,    0};  // Current velocity (units/sec)
+float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 4095, 4095};  // Max Servo velocity (units/sec)
+float accell[] = { 350, 480, 150,1800,1800, 300, 300,  800,  800};  // Servo acceleration (units/sec^2)
 
 
 // Animation Presets 
@@ -332,8 +335,8 @@ void manageServos(float dt) {
 			if (abs(dP) < abs(posError)) curpos[i] += dP;
 			else curpos[i] = setpos[i];
 
-      		LOG(LL_INFO, ("Mandando comando para %d ", i));
-			mgos_PWMServoDriver_setPWM(pwm, i, 0, curpos[i]);
+      		LOG(LL_INFO, ("Mandando comando PWD %d para %d", (int) curpos[i], i));
+			pwm->setPWM(i, 0, curpos[i]);
 
 		} else {
 			curvel[i] = 0;
@@ -507,10 +510,15 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
 
 
   }
+
+  //CONECTION SUCCESS
+  if (strcmp(cmd, "cn") == 0) {
+	  status_led_on();
+  }
   
   
   //READS
-  if (strcmp(cmd, "vr") == 0) {
+  else if (strcmp(cmd, "vr") == 0) {
     
     /*
     //memoria livre
@@ -596,8 +604,8 @@ void evaluateCommand(const char command, int number) {
 	
 	// Motor Inputs and Offsets
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 2.55); 		// Forward/reverse control
-	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 2.55); 		// Left/right control
+	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 40.95); 		// Forward/reverse control
+	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 40.95); 		// Left/right control
 	else if (command == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
 	else if (command == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
 
@@ -807,47 +815,48 @@ static void loop(void *arg) {
 
 enum mgos_app_init_result mgos_app_init(void) {
 
-  struct mgos_uart_config ucfg;
-  mgos_uart_config_set_defaults(UART_NO, &ucfg);
-  /*
-  * At this point it is possible to adjust baud rate, pins and other settings.
-  * 115200 8-N-1 is the default mode
-  */
-  mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL /* arg */);
-  mgos_uart_set_rx_enabled(UART_NO, true);
+	struct mgos_uart_config ucfg;
+	mgos_uart_config_set_defaults(UART_NO, &ucfg);
+	/*
+	* At this point it is possible to adjust baud rate, pins and other settings.
+	* 115200 8-N-1 is the default mode
+	*/
+	mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL /* arg */);
+	mgos_uart_set_rx_enabled(UART_NO, true);
 
 
 
-  /* Network connectivity events */
-  mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, net_cb, NULL);
+	/* Network connectivity events */
+	mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, net_cb, NULL);
 
-  //botao flash para reset
-  mgos_gpio_set_button_handler(0, MGOS_GPIO_PULL_UP, MGOS_GPIO_INT_EDGE_POS, 50, gpio_int_handler_flash, NULL);
+	//botao flash para reset
+	mgos_gpio_set_button_handler(0, MGOS_GPIO_PULL_UP, MGOS_GPIO_INT_EDGE_POS, 50, gpio_int_handler_flash, NULL);
 
-  //led for wifi state
-  mgos_gpio_set_mode(STATUS_LED_GPIO, MGOS_GPIO_MODE_OUTPUT);
+	//led for wifi state
+	mgos_gpio_set_mode(STATUS_LED_GPIO, MGOS_GPIO_MODE_OUTPUT);
 
-  mgos_event_add_handler(MGOS_EVENT_CLOUD_CONNECTED, cloud_cb, NULL);
-  mgos_event_add_handler(MGOS_EVENT_CLOUD_DISCONNECTED, cloud_cb, NULL);
+	mgos_event_add_handler(MGOS_EVENT_CLOUD_CONNECTED, cloud_cb, NULL);
+	mgos_event_add_handler(MGOS_EVENT_CLOUD_DISCONNECTED, cloud_cb, NULL);
 
-  blynk_set_handler(blynk_handler, NULL);
+	blynk_set_handler(blynk_handler, NULL);
 
-  // Output Enable (EO) pin for the servo motors
-  mgos_gpio_set_mode(SR_OE, MGOS_GPIO_MODE_OUTPUT);
-  mgos_gpio_write(SR_OE, HIGH);
+	// Output Enable (EO) pin for the servo motors
+	mgos_gpio_set_mode(SR_OE, MGOS_GPIO_MODE_OUTPUT);
+	mgos_gpio_write(SR_OE, HIGH);
 
 	// Communicate with servo shield (Analog servos run at ~60Hz)
-	mgos_PWMServoDriver_begin(pwm);
-	mgos_PWMServoDriver_setPWMFreq(pwm, 60);
+	pwm->begin();
+  	pwm->setPWMFreq(60);  // Analog servos run at ~60 Hz updates
 
 	LOG(LL_INFO, ("Starting Program"));
 
 	// Move servos to known starting positions
 	queueAnimation(softSeq, SOFT_LEN);
 
-  ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
+	ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
 
-  LOG(LL_INFO, ("INIT COM SUCESSO"));
-  return MGOS_APP_INIT_SUCCESS;
+	LOG(LL_INFO, ("INIT COM SUCESSO"));
+	return MGOS_APP_INIT_SUCCESS;
+
 }
 
