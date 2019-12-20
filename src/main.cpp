@@ -6,6 +6,7 @@
 
 #include "Queue.hpp"
 #include "MotorController.hpp"
+#include "DFPlayerMini_Fast.h"
 
 
 /******************************************************************************************************
@@ -16,7 +17,7 @@
 
 #define TOHEX(Y) (Y>='0'&&Y<='9'?Y-'0':Y-'A'+10)
 
-#define UART_NO 0
+//#define UART_NO 0
 
 // Define the pin-mapping
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -89,6 +90,7 @@ char firstChar;
 char serialBuffer[MAX_SERIAL];
 uint8_t serialLength = 0;
 
+DFPlayerMini_Fast mp3_player;
 
 // ****** SERVO MOTOR CALIBRATION *********************
 // Servo Positions:  Low,High
@@ -399,6 +401,142 @@ void manageMotors(float dt) {
 
 
 
+// -------------------------------------------------------------------
+// 		EVALUATE INPUT FROM SERIAL
+// -------------------------------------------------------------------
+void evaluateCommand(const char command, int number) {
+	
+	// Motor Inputs and Offsets
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 40.95); 		// Forward/reverse control
+	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 40.95); 		// Left/right control
+	else if (command == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
+	else if (command == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
+
+	// Animations
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (command == 'A' && number == 0) queueAnimation(softSeq, SOFT_LEN);
+	else if (command == 'A' && number == 1) queueAnimation(bootSeq, BOOT_LEN);
+	else if (command == 'A' && number == 2) queueAnimation(inquSeq, INQU_LEN);
+
+	// Autonomous servo mode
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (command == 'M' && number == 0) autoMode = false;
+	else if (command == 'M' && number == 1) autoMode = true;
+
+	// Manual Movements with WASD
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (command == 'w') {		// Forward movement
+		moveVal = pwmspeed;
+		turnVal = 0;
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
+	else if (command == 'q') {		// Stop movement
+		moveVal = 0;
+		turnVal = 0;
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
+	else if (command == 's') {		// Backward movement
+		moveVal = -pwmspeed;
+		turnVal = 0;
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
+	else if (command == 'a') {		// Drive & look left
+		moveVal = 0;
+		turnVal = -pwmspeed;
+		setpos[0] = preset[0][0];
+	}
+	else if (command == 'd') {   		// Drive & look right
+		moveVal = 0;
+		turnVal = pwmspeed;
+		setpos[0] = preset[0][1];
+	}
+
+	// Manual Eye Movements
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (command == 'j') {		// Left head tilt
+		setpos[4] = preset[4][0];
+		setpos[3] = preset[3][1];
+	}
+	else if (command == 'l') {		// Right head tilt
+		setpos[4] = preset[4][1];
+		setpos[3] = preset[3][0];
+	}
+	else if (command == 'i') {		// Sad head
+		setpos[4] = preset[4][0];
+		setpos[3] = preset[3][0];
+	}
+	else if (command == 'k') {		// Neutral head
+		setpos[4] = int(0.4 * (preset[4][1] - preset[4][0]) + preset[4][0]);
+		setpos[3] = int(0.4 * (preset[3][1] - preset[3][0]) + preset[3][0]);
+	}
+
+	// Head movement
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (command == 'f') {		// Head up
+		setpos[1] = preset[1][0];
+		setpos[2] = (preset[2][1] + preset[2][0])/2;
+	}
+	else if (command == 'g') {		// Head forward
+		setpos[1] = preset[1][1];
+		setpos[2] = preset[2][0];
+	}
+	else if (command == 'h') {		// Head down
+		setpos[1] = preset[1][0];
+		setpos[2] = preset[2][0];
+	}
+	
+	// Arm Movements
+	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
+	else if (command == 'b') {		// Left arm low, right arm high
+		setpos[5] = preset[5][0];
+		setpos[6] = preset[6][1];
+	}
+	else if (command == 'n') {		// Both arms neutral
+		setpos[5] = (preset[5][0] + preset[5][1]) / 2;
+		setpos[6] = (preset[6][0] + preset[6][1]) / 2;
+	}
+	else if (command == 'm') {		// Left arm high, right arm low
+		setpos[5] = preset[5][1];
+		setpos[6] = preset[6][0];
+	}
+}
+
+
+// -------------------------------------------------------------------
+// 		READ INPUT FROM SERIAL
+// -------------------------------------------------------------------
+void processCommand(char inchar) {
+
+	// If the string has ended, evaluate the serial buffer
+	if (inchar == '\n' || inchar == '\r') {
+
+		if (serialLength > 0) evaluateCommand(firstChar, atoi(serialBuffer));
+		serialBuffer[0] = 0;
+		serialLength = 0;
+
+	// Otherwise add to the character to the buffer
+	} else {
+		if (serialLength == 0) firstChar = inchar;
+		else {
+			serialBuffer[serialLength-1] = inchar;
+			serialBuffer[serialLength] = 0;
+		}
+		serialLength++;
+
+		// To prevent overflows, evalute the buffer if it is full
+		if (serialLength == MAX_SERIAL) {
+			evaluateCommand(firstChar, atoi(serialBuffer));
+			serialBuffer[0] = 0;
+			serialLength = 0;
+		}
+	}
+}
+
+
+
+
+
 /******************************************************************************************************
  * NETWORK STATUS
 *******************************************************************************************************/
@@ -597,145 +735,12 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
 
 
 
-// -------------------------------------------------------------------
-// 		EVALUATE INPUT FROM SERIAL
-// -------------------------------------------------------------------
-void evaluateCommand(const char command, int number) {
-	
-	// Motor Inputs and Offsets
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 40.95); 		// Forward/reverse control
-	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 40.95); 		// Left/right control
-	else if (command == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
-	else if (command == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
-
-	// Animations
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (command == 'A' && number == 0) queueAnimation(softSeq, SOFT_LEN);
-	else if (command == 'A' && number == 1) queueAnimation(bootSeq, BOOT_LEN);
-	else if (command == 'A' && number == 2) queueAnimation(inquSeq, INQU_LEN);
-
-	// Autonomous servo mode
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (command == 'M' && number == 0) autoMode = false;
-	else if (command == 'M' && number == 1) autoMode = true;
-
-	// Manual Movements with WASD
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (command == 'w') {		// Forward movement
-		moveVal = pwmspeed;
-		turnVal = 0;
-		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
-	}
-	else if (command == 'q') {		// Stop movement
-		moveVal = 0;
-		turnVal = 0;
-		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
-	}
-	else if (command == 's') {		// Backward movement
-		moveVal = -pwmspeed;
-		turnVal = 0;
-		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
-	}
-	else if (command == 'a') {		// Drive & look left
-		moveVal = 0;
-		turnVal = -pwmspeed;
-		setpos[0] = preset[0][0];
-	}
-	else if (command == 'd') {   		// Drive & look right
-		moveVal = 0;
-		turnVal = pwmspeed;
-		setpos[0] = preset[0][1];
-	}
-
-	// Manual Eye Movements
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (command == 'j') {		// Left head tilt
-		setpos[4] = preset[4][0];
-		setpos[3] = preset[3][1];
-	}
-	else if (command == 'l') {		// Right head tilt
-		setpos[4] = preset[4][1];
-		setpos[3] = preset[3][0];
-	}
-	else if (command == 'i') {		// Sad head
-		setpos[4] = preset[4][0];
-		setpos[3] = preset[3][0];
-	}
-	else if (command == 'k') {		// Neutral head
-		setpos[4] = int(0.4 * (preset[4][1] - preset[4][0]) + preset[4][0]);
-		setpos[3] = int(0.4 * (preset[3][1] - preset[3][0]) + preset[3][0]);
-	}
-
-	// Head movement
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (command == 'f') {		// Head up
-		setpos[1] = preset[1][0];
-		setpos[2] = (preset[2][1] + preset[2][0])/2;
-	}
-	else if (command == 'g') {		// Head forward
-		setpos[1] = preset[1][1];
-		setpos[2] = preset[2][0];
-	}
-	else if (command == 'h') {		// Head down
-		setpos[1] = preset[1][0];
-		setpos[2] = preset[2][0];
-	}
-	
-	// Arm Movements
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	else if (command == 'b') {		// Left arm low, right arm high
-		setpos[5] = preset[5][0];
-		setpos[6] = preset[6][1];
-	}
-	else if (command == 'n') {		// Both arms neutral
-		setpos[5] = (preset[5][0] + preset[5][1]) / 2;
-		setpos[6] = (preset[6][0] + preset[6][1]) / 2;
-	}
-	else if (command == 'm') {		// Left arm high, right arm low
-		setpos[5] = preset[5][1];
-		setpos[6] = preset[6][0];
-	}
-}
-
-
-// -------------------------------------------------------------------
-// 		READ INPUT FROM SERIAL
-// -------------------------------------------------------------------
-void readSerial(char inchar) {
-
-	// If the string has ended, evaluate the serial buffer
-	if (inchar == '\n' || inchar == '\r') {
-
-		if (serialLength > 0) evaluateCommand(firstChar, atoi(serialBuffer));
-		serialBuffer[0] = 0;
-		serialLength = 0;
-
-	// Otherwise add to the character to the buffer
-	} else {
-		if (serialLength == 0) firstChar = inchar;
-		else {
-			serialBuffer[serialLength-1] = inchar;
-			serialBuffer[serialLength] = 0;
-		}
-		serialLength++;
-
-		// To prevent overflows, evalute the buffer if it is full
-		if (serialLength == MAX_SERIAL) {
-			evaluateCommand(firstChar, atoi(serialBuffer));
-			serialBuffer[0] = 0;
-			serialLength = 0;
-		}
-	}
-}
-
-
 
 /*
  * Dispatcher can be invoked with any amount of data (even none at all) and
  * at any time. Here we demonstrate how to process input line by line.
  */
-
+/*
 static void uart_dispatcher(int uart_no, void *arg) {
 
   static struct mbuf lb = {0};
@@ -753,7 +758,7 @@ static void uart_dispatcher(int uart_no, void *arg) {
 
 
   for(int i=0; i<(int)lb.len; i++) {
-    readSerial(lb.buf[i]);
+    processCommand(lb.buf[i]);
     manageAnimations();
   }
 
@@ -763,7 +768,7 @@ static void uart_dispatcher(int uart_no, void *arg) {
   
   (void) arg;
 }
-
+*/
 
 
 /******************************************************************************************************
@@ -776,6 +781,24 @@ static void gpio_int_handler_flash(int pin, void *arg) {
 
   LOG(LL_INFO, ("Memoria livre: %d", mgos_get_free_heap_size()  ));
   blynk_report((char *)"botao flash pressionado");
+
+  //Serial.println("Setting volume to max");
+  mp3_player.volume(30);
+  mgos_msleep(20);
+  
+  //Serial.println("Playing track 1 for 5 sec");
+  mp3_player.play(1);
+  mgos_msleep(5000);
+
+  //Serial.println("Sleeping for 5 sec");
+  mp3_player.sleep();
+  mgos_msleep(5000);
+
+  //Serial.println("Waking up");
+  mp3_player.wakeUp();
+
+  //Serial.println("Looping track 1");
+  mp3_player.loop(1);
 
   (void) arg;
   (void) pin;
@@ -812,13 +835,15 @@ static void loop(void *arg) {
 enum mgos_app_init_result mgos_app_init(void) {
 
 	struct mgos_uart_config ucfg;
-	mgos_uart_config_set_defaults(UART_NO, &ucfg);
-	/*
-	* At this point it is possible to adjust baud rate, pins and other settings.
-	* 115200 8-N-1 is the default mode
-	*/
-	mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL /* arg */);
-	mgos_uart_set_rx_enabled(UART_NO, true);
+	mgos_uart_config_set_defaults(mgos_sys_config_get_walle_uart_no(), &ucfg);
+	ucfg.baud_rate = mgos_sys_config_get_walle_uart_baudrate();
+	if (!mgos_uart_configure(mgos_sys_config_get_walle_uart_no(), &ucfg)) {
+		return MGOS_APP_INIT_ERROR;
+	}
+	//mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL /* arg */);
+	mgos_uart_set_rx_enabled(mgos_sys_config_get_walle_uart_no(), true);
+
+	mp3_player.begin(mgos_sys_config_get_walle_uart_no());
 
 
 
