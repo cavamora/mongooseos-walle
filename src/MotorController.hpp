@@ -76,9 +76,9 @@ MotorController::~MotorController() {
  */
 void MotorController::setSpeed(int pwmValue) {
 
-	// Bound the PWM value to +-255
-	if (pwmValue > 255) pwmValue = 255;
-	else if (pwmValue < -255) pwmValue = -255;
+	// Bound the PWM value to +-4095
+	if (pwmValue > 4095) pwmValue = 4095;
+	else if (pwmValue < -4095) pwmValue = -4095;
 	
 	// Forward direction
 	if (pwmValue > 0) {
