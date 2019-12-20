@@ -56,11 +56,11 @@ mgos_timer_id ptr_timer_loop;
 // Instantiate objects
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo shield controller class - assumes default address 0x40
-Adafruit_PWMServoDriver *pwm = new Adafruit_PWMServoDriver();
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // Set up motor controller classes
-MotorController motorL(IN1_L, IN2_L, PWM_L, pwm);
-MotorController motorR(IN1_R, IN2_R, PWM_R, pwm);
+MotorController motorL(IN1_L, IN2_L, PWM_L, &pwm);
+MotorController motorR(IN1_R, IN2_R, PWM_R, &pwm);
 
 // Queue for animations
 Queue <int> queue(400);
@@ -68,7 +68,7 @@ Queue <int> queue(400);
 
 // Motor Control Variables
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
-int pwmspeed = 255;
+int pwmspeed = 4095;
 int moveVal = 0;
 int turnVal = 0;
 int turnOff = 0;
@@ -336,7 +336,7 @@ void manageServos(float dt) {
 			else curpos[i] = setpos[i];
 
       		LOG(LL_INFO, ("Mandando comando PWD %d para %d", (int) curpos[i], i));
-			pwm->setPWM(i, 0, curpos[i]);
+			pwm.setPWM(i, 0, curpos[i]);
 
 		} else {
 			curvel[i] = 0;
@@ -735,6 +735,7 @@ void readSerial(char inchar) {
  * Dispatcher can be invoked with any amount of data (even none at all) and
  * at any time. Here we demonstrate how to process input line by line.
  */
+
 static void uart_dispatcher(int uart_no, void *arg) {
 
   static struct mbuf lb = {0};
@@ -759,7 +760,7 @@ static void uart_dispatcher(int uart_no, void *arg) {
 
   mbuf_remove(&lb, lb.len);
 
-  /* Finally, remove the line data from the buffer. */
+  
   (void) arg;
 }
 
@@ -780,15 +781,10 @@ static void gpio_int_handler_flash(int pin, void *arg) {
   (void) pin;
 }
 
+
+
 static void loop(void *arg) {
   
-  // Read any new serial messages
-	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	//if (Serial.available() > 0){
-	//	readSerial();
-	//}
-
-
 	// Load or generate new animations
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
 	manageAnimations();
@@ -845,8 +841,8 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_gpio_write(SR_OE, HIGH);
 
 	// Communicate with servo shield (Analog servos run at ~60Hz)
-	pwm->begin();
-  	pwm->setPWMFreq(60);  // Analog servos run at ~60 Hz updates
+	pwm.begin();
+  	pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
 
 	LOG(LL_INFO, ("Starting Program"));
 
