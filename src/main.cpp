@@ -13,7 +13,7 @@
  * DEFINES
 *******************************************************************************************************/
 
-#define STATUS_LED_GPIO                   2
+#define STATUS_LED_GPIO                   2								// D4
 
 #define TOHEX(Y) (Y>='0'&&Y<='9'?Y-'0':Y-'A'+10)
 
@@ -29,7 +29,7 @@
 #define IN2_R 15
 #define PWM_R 7																//  D8
 
-#define SR_OE -1 	       // Servo shield output enable pin					D4					
+#define SR_OE 16 	       // Servo shield output enable pin					D0					
 
 
 
@@ -485,6 +485,16 @@ void evaluateCommand(const char command, int number) {
 		setpos[1] = preset[1][0];
 		setpos[2] = preset[2][0];
 	}
+
+	else if (command == 'v') {		//look left
+		setpos[0] = preset[0][0];
+	}
+	else if (command == 'c') {		//look right
+		setpos[0] = preset[0][1];
+	}
+	else if (command == 'x') {		//look forward
+		setpos[0] = (preset[0][1] + preset[0][0]) / 2;
+	}
 	
 	// Arm Movements
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -504,7 +514,7 @@ void evaluateCommand(const char command, int number) {
 
 
 // -------------------------------------------------------------------
-// 		READ INPUT FROM SERIAL
+// 		START PROCESSING COMMAND
 // -------------------------------------------------------------------
 void processCommand(char inchar) {
 
@@ -538,7 +548,7 @@ void processCommand(char inchar) {
 
 
 /******************************************************************************************************
- * NETWORK STATUS
+ * NETWORK 
 *******************************************************************************************************/
 
 
@@ -606,6 +616,39 @@ static void cloud_cb(int ev, void *evd, void *arg) {
 
   (void) arg;
 }
+
+static void net_api_handler(struct mg_connection *c, int ev, void *p, void *user_data) {
+	
+	struct http_message *hm = (struct http_message *)p;
+	LOG(LL_INFO, ("URI=%.*s", hm->uri.len, hm->uri.p));
+	LOG(LL_INFO, ("QS=%.*s", hm->query_string.len, hm->query_string.p));
+	
+	if (ev != MG_EV_HTTP_REQUEST) {
+		return;
+	}
+	
+	if (strncmp("/cmnd/move", hm->uri.p, hm->uri.len) == 0) {
+		...
+		mg_send_response_line(c, 200,
+		"Content-Type: text/plain\r\n");
+		mg_printf(c, "OK\r\n");
+	}
+
+	else if (strncmp("/cmnd/end", hm->uri.p, hm->uri.len) == 0) {
+		...
+		mg_send_response_line(c, 200,
+		"Content-Type: text/plain\r\n");
+		mg_printf(c, "OK\r\n");
+	}
+	else {
+		LOG(LL_INFO, ("Comando desconhecido"));
+	}
+
+	c->flags |= MG_F_SEND_AND_CLOSE;
+	(void) user_data;
+
+}
+
  
 
 
@@ -692,17 +735,40 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
       
     }
 
-	//joystick X
-    if (pin == 2) {
-      LOG(LL_INFO, ("blynk_handler: clique joystick X"));
+	//joystick Y
+    else if (pin == 2) {
+      LOG(LL_INFO, ("blynk_handler: clique joystick Y"));
 	  evaluateCommand('Y', val);
       
     }
 
-	//joystick X
-    if (pin == 3) {
-      LOG(LL_INFO, ("blynk_handler: off"));
-	  evaluateCommand('Y', val);
+	//head leaf/right
+    else if (pin == 3) {
+      LOG(LL_INFO, ("blynk_handler: head l/r val=%d",val));
+	  if (val > 0) {
+	  	evaluateCommand('c', 0);
+	  }
+	  else if (val < 0) {
+		evaluateCommand('v', 0);  
+	  }
+	  else {
+		evaluateCommand('x', 0);    
+	  }
+      
+    }
+
+	//head leaf/right
+    else if (pin == 4) {
+      LOG(LL_INFO, ("blynk_handler: head u/d val=%d",val));
+	  if (val > 0) {
+	  	evaluateCommand('f', 0);
+	  }
+	  else if (val < 0) {
+		evaluateCommand('g', 0);  
+	  }
+	  else {
+		evaluateCommand('h', 0);    
+	  }
       
     }
 
@@ -875,6 +941,8 @@ enum mgos_app_init_result mgos_app_init(void) {
 	queueAnimation(softSeq, SOFT_LEN);
 
 	ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
+
+	mgos_register_http_endpoint("/walle/", net_api_handler, NULL);
 
 	LOG(LL_INFO, ("INIT COM SUCESSO"));
 	return MGOS_APP_INIT_SUCCESS;
