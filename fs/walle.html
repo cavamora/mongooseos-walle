@@ -1,44 +1,16 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NodeMCU Motor Driver</title>
-  <link rel="stylesheet" href="materialize.min.css">
-  <link rel="manifest" href="manifest.json">
-  <script src="nipplejs.min.js"></script>
-  <script src="materialize.min.js"></script>
-</head>
-<body scroll="no" style="overflow: hidden">
-  <div class="container">
-    <h2 id="title" class="light center">NodeMCU Robot</h2>
-  </div>
-  <div>
-    <div id="static" style="position: absolute; width:100%; height:100%"></div>
-  </div>
-  <script>
-    var xhttp = new XMLHttpRequest();
-    var joystick = nipplejs.create({
-      zone: document.getElementById('static'),
-      mode: 'static',
-      position: {
-        left: '50%',
-        top: '50%'
-      },
-      color: '#34629C',
-      size: 200
-    });
-    joystick.on('move', function (evt, data) {
-      var url = "walle/cmnd/move?x=" + Math.trunc(data.instance.frontPosition.x) + "&y=" + Math.trunc(data.instance.frontPosition.y);
-      xhttp.open("GET", url);
-      xhttp.send();
-      
-    }).on('end', function (evt, data) {
-      var url = "walle/cmnd/end";
-      xhttp.open("GET", url);
-      xhttp.send(JSON.stringify(evt));
-      
-    });
-  </script>
-</body>
-</html>
+<script>
+    
+    function execComand(params) {
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "GET", "/walle/cmnd/exec?" + params, true ); // false for synchronous request
+        xmlHttp.send( null );
+        return xmlHttp.responseText;
+    }
+    
+</script>
+    
+    <button onclick="execComand('cmd=w')">UP</button>
+    <button onclick="execComand('cmd=s')">DOWN</button>
+    <button onclick="execComand('cmd=a')">LEFT</button>
+    <button onclick="execComand('cmd=d')">RIGHT</button>
+    <button onclick="execComand('cmd=q')">STOP</button>

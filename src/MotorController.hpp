@@ -11,6 +11,7 @@
 #define MOTOR_CONTROLLER_HPP
 
 #include "Adafruit_PWMServoDriver.h"
+#include "mgos.h"
 
 // MOTOR CONTROLLER CLASS
 class MotorController {

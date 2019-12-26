@@ -1,12 +1,22 @@
 #include <stdio.h>
-#include "mgos.h"
-#include "common/json_utils.h"
-#include "mgos_blynk.h"
-#include "Adafruit_PWMServoDriver.h"
 
+#include "Adafruit_PWMServoDriver.h"
 #include "Queue.hpp"
 #include "MotorController.hpp"
 #include "DFPlayerMini_Fast.h"
+
+#include "common/mg_str.h"
+#include "common/json_utils.h"
+
+#include "mgos_config_util.h"
+#include "mgos_hal.h"
+#include "mgos_sys_config.h"
+#include "mgos_utils.h"
+#include "mgos.h"
+#include "mgos_blynk.h"
+#include "mgos_rpc.h"
+#include "mgos_http_server.h"
+#include "mgos_gpio.h"
 
 
 /******************************************************************************************************
@@ -617,36 +627,168 @@ static void cloud_cb(int ev, void *evd, void *arg) {
   (void) arg;
 }
 
+
+bool net_api_get_param(const char *topic, int topic_len, const char *name, char *value) { 
+
+  char *buffer = (char *)calloc(topic_len+1, 1);
+  memcpy(buffer, topic, topic_len);
+  
+  char *pos1 = strstr(buffer, name); 
+
+  if (pos1) { 
+    pos1 += strlen(name); 
+
+    if (*pos1 == '=') { // Make sure there is an '=' where we expect it 
+      pos1++; 
+
+      while (*pos1 && *pos1 != '&') { 
+        
+        if (*pos1 == '%') { // Convert it to a single ASCII character and store at our Valueination 
+          *value++ = (char)TOHEX(pos1[1]) * 16 + TOHEX(pos1[2]); 
+          pos1 += 3; 
+        } 
+        
+        else if( *pos1=='+' ) { // If it's a '+', store a space at our Valueination 
+          *value++ = ' '; 
+          pos1++; 
+        } 
+        else { 
+          *value++ = *pos1++; // Otherwise, just store the character at our Valueination 
+        } 
+        //LOG(LL_INFO, ("pos1= %d max=%d", (int)pos1, (int)topic+topic_len));
+        //LOG(LL_INFO, ("value=%s", value));
+
+      } 
+
+      *value++ = 0;
+      free(buffer);
+      return true; 
+      } 
+
+    } 
+
+  // If param not found, then use default parameter 
+  strcpy(value, "undefine");	
+  free(buffer);
+  return false; 
+  } 
+
+
 static void net_api_handler(struct mg_connection *c, int ev, void *p, void *user_data) {
 	
 	struct http_message *hm = (struct http_message *)p;
 	LOG(LL_INFO, ("URI=%.*s", hm->uri.len, hm->uri.p));
 	LOG(LL_INFO, ("QS=%.*s", hm->query_string.len, hm->query_string.p));
+	char temp[10];
 	
 	if (ev != MG_EV_HTTP_REQUEST) {
 		return;
 	}
 	
 	if (strncmp("/cmnd/move", hm->uri.p, hm->uri.len) == 0) {
-		...
-		mg_send_response_line(c, 200,
-		"Content-Type: text/plain\r\n");
-		mg_printf(c, "OK\r\n");
+
+		memset(temp, 0, sizeof(temp));
+		net_api_get_param(hm->uri.p, hm->uri.len, "x", temp);
+		int x = atoi(temp);
+
+		memset(temp, 0, sizeof(temp));
+		net_api_get_param(hm->uri.p, hm->uri.len, "y", temp);
+		int y = atoi(temp);
+
+		evaluateCommand('X', x);
+		evaluateCommand('Y', y);
+
 	}
 
-	else if (strncmp("/cmnd/end", hm->uri.p, hm->uri.len) == 0) {
-		...
-		mg_send_response_line(c, 200,
-		"Content-Type: text/plain\r\n");
-		mg_printf(c, "OK\r\n");
+	else if (strncmp("/cmnd/exec", hm->uri.p, hm->uri.len) == 0) {
+
+		
+		int val = 0;
+		char temp[10];
+		memset(temp, 0, sizeof(temp));
+		if (net_api_get_param(hm->uri.p, hm->uri.len, "val", temp)) {
+			val = atoi(temp);
+		}
+
+		char cmd[10];
+		memset(cmd, 0, sizeof(cmd));
+		if (net_api_get_param(hm->uri.p, hm->uri.len, "cmd", cmd) ) {
+			evaluateCommand(cmd[0], val);
+		}
+
+		else {
+			LOG(LL_INFO, ("ERROR: cmd not found"));
+		}
+
+	
+		
+		
 	}
+	
 	else {
 		LOG(LL_INFO, ("Comando desconhecido"));
 	}
 
+	mg_send_response_line(c, 200,
+	"Content-Type: text/plain\r\n");
+	mg_printf(c, "OK\r\n");
+
 	c->flags |= MG_F_SEND_AND_CLOSE;
 	(void) user_data;
 
+}
+
+
+static void net_rpc_walle_move_handler(struct mg_rpc_request_info *ri, void *cb_arg,
+                                    struct mg_rpc_frame_info *fi,
+                                    struct mg_str args) {
+
+  int x = 0;
+  int y = 0;
+
+  if (json_scanf(args.p, args.len, ri->args_fmt, &x, &y) == 1) { 
+
+    LOG(LL_INFO, ("OK: x=%d y=%d", x, y)); 
+	evaluateCommand('X', x);
+	evaluateCommand('Y', y);
+  }
+  else {
+    LOG(LL_INFO, ("ERROR"));
+  }
+
+  mg_rpc_send_responsef(ri, NULL);
+  ri = NULL;
+
+  (void) cb_arg;
+  (void) fi;
+}
+
+
+
+static void net_rpc_walle_exec_handler(struct mg_rpc_request_info *ri, void *cb_arg,
+                                    struct mg_rpc_frame_info *fi,
+                                    struct mg_str args) {
+
+  int val = 0;
+  char *cmd = 0;
+
+  if (json_scanf(args.p, args.len, ri->args_fmt, &cmd, &val) == 1) { 
+
+    LOG(LL_INFO, ("OK: cmd=%s val=%d", cmd, val)); 
+	evaluateCommand(cmd[0], val);
+	
+  }
+  else {
+    LOG(LL_INFO, ("ERROR"));
+  }
+
+  free(cmd);
+
+  mg_rpc_send_responsef(ri, NULL);
+  ri = NULL;
+
+  (void) cb_arg;
+  (void) fi;
 }
 
  
@@ -943,6 +1085,10 @@ enum mgos_app_init_result mgos_app_init(void) {
 	ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
 
 	mgos_register_http_endpoint("/walle/", net_api_handler, NULL);
+
+	struct mg_rpc *c = mgos_rpc_get_global();
+  	mg_rpc_add_handler(c, "Walle.Move", "{x: %d, y: %d}", net_rpc_walle_move_handler, NULL);
+	mg_rpc_add_handler(c, "Walle.Exec", "{cmd: %Q, val: %d}", net_rpc_walle_exec_handler, NULL);
 
 	LOG(LL_INFO, ("INIT COM SUCESSO"));
 	return MGOS_APP_INIT_SUCCESS;
