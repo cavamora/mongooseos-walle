@@ -39,7 +39,7 @@
 #define IN2_R 15
 #define PWM_R 7																//  D8
 
-#define SR_OE 16 	       // Servo shield output enable pin					D0					
+#define SR_OE -1 	       // Servo shield output enable pin					D0					
 
 
 
@@ -415,6 +415,8 @@ void manageMotors(float dt) {
 // 		EVALUATE INPUT FROM SERIAL
 // -------------------------------------------------------------------
 void evaluateCommand(const char command, int number) {
+
+	LOG(LL_INFO, ("evaluateCommand: cmd:%c, val:%d", command, number));
 	
 	// Motor Inputs and Offsets
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -676,23 +678,29 @@ bool net_api_get_param(const char *topic, int topic_len, const char *name, char 
 
 static void net_api_handler(struct mg_connection *c, int ev, void *p, void *user_data) {
 	
-	struct http_message *hm = (struct http_message *)p;
-	LOG(LL_INFO, ("URI=%.*s", hm->uri.len, hm->uri.p));
-	LOG(LL_INFO, ("QS=%.*s", hm->query_string.len, hm->query_string.p));
-	char temp[10];
-	
+	LOG(LL_INFO, ("http event=%d", ev));
 	if (ev != MG_EV_HTTP_REQUEST) {
 		return;
 	}
 	
-	if (strncmp("/cmnd/move", hm->uri.p, hm->uri.len) == 0) {
+	struct http_message *hm = (struct http_message *)p;
+
+	LOG(LL_INFO, ("URI=%.*s", hm->uri.len, hm->uri.p));
+	LOG(LL_INFO, ("QS=%.*s", hm->query_string.len, hm->query_string.p));
+	char temp[10];
+	
+	
+	
+	
+
+	if (strncmp("/walle/cmnd/move", hm->uri.p, hm->uri.len) == 0) {
 
 		memset(temp, 0, sizeof(temp));
-		net_api_get_param(hm->uri.p, hm->uri.len, "x", temp);
+		net_api_get_param(hm->query_string.p, hm->query_string.len, "x", temp);
 		int x = atoi(temp);
 
 		memset(temp, 0, sizeof(temp));
-		net_api_get_param(hm->uri.p, hm->uri.len, "y", temp);
+		net_api_get_param(hm->query_string.p, hm->query_string.len, "y", temp);
 		int y = atoi(temp);
 
 		evaluateCommand('X', x);
@@ -700,19 +708,19 @@ static void net_api_handler(struct mg_connection *c, int ev, void *p, void *user
 
 	}
 
-	else if (strncmp("/cmnd/exec", hm->uri.p, hm->uri.len) == 0) {
+	else if (strncmp("/walle/cmnd/exec", hm->uri.p, hm->uri.len) == 0) {
 
 		
 		int val = 0;
 		char temp[10];
 		memset(temp, 0, sizeof(temp));
-		if (net_api_get_param(hm->uri.p, hm->uri.len, "val", temp)) {
+		if (net_api_get_param(hm->query_string.p, hm->query_string.len, "val", temp)) {
 			val = atoi(temp);
 		}
 
 		char cmd[10];
 		memset(cmd, 0, sizeof(cmd));
-		if (net_api_get_param(hm->uri.p, hm->uri.len, "cmd", cmd) ) {
+		if (net_api_get_param(hm->query_string.p, hm->query_string.len, "cmd", cmd) ) {
 			evaluateCommand(cmd[0], val);
 		}
 
@@ -729,11 +737,16 @@ static void net_api_handler(struct mg_connection *c, int ev, void *p, void *user
 		LOG(LL_INFO, ("Comando desconhecido"));
 	}
 
-	mg_send_response_line(c, 200,
-	"Content-Type: text/plain\r\n");
-	mg_printf(c, "OK\r\n");
+	
 
-	c->flags |= MG_F_SEND_AND_CLOSE;
+
+	mg_printf(c, "HTTP/1.1 200 OK\r\n" 
+             "Content-Type: application/json\r\n\r\n" 
+             "{ \"result\": %d }\n", 200); 
+   	c->flags |= MG_F_SEND_AND_CLOSE; 
+
+	LOG(LL_INFO, ("Saindo"));
+
 	(void) user_data;
 
 }
@@ -1084,7 +1097,7 @@ enum mgos_app_init_result mgos_app_init(void) {
 
 	ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
 
-	mgos_register_http_endpoint("/walle/", net_api_handler, NULL);
+	mgos_register_http_endpoint("/walle", net_api_handler, NULL);
 
 	struct mg_rpc *c = mgos_rpc_get_global();
   	mg_rpc_add_handler(c, "Walle.Move", "{x: %d, y: %d}", net_rpc_walle_move_handler, NULL);
