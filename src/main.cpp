@@ -39,10 +39,7 @@
 #define IN2_R 15
 #define PWM_R 7																//  D8
 
-#define SR_OE 0 	       // Servo shield output enable pin					D3					
-
-
-
+#define SR_OE -1 	       // Servo shield output enable pin					D3					
 
 
 // Define other constants
@@ -79,7 +76,7 @@ Queue <int> queue(400);
 
 // Motor Control Variables
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
-int pwmspeed = 4095;
+int pwmspeed = 255;
 int moveVal = 0;
 int turnVal = 0;
 int turnOff = 0;
@@ -118,11 +115,11 @@ int preset[][2] =  {{410, 125},   // head rotation
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo Pins:	     0,   1,   2,   3,   4,   5,   6,   -,   -
 // Joint Name:	  head,necT,necB,eyeR,eyeL,armL,armR,motL,motR
-float curpos[] = { 248, 560, 140, 475, 270, 250, 290,  2880,  2880};  // Current position (units)
-float setpos[] = { 248, 560, 140, 475, 270, 250, 290,    0,    0};  // Required position (units)
-float curvel[] = {   0,   0,   0,   0,   0,   0,   0,    0,    0};  // Current velocity (units/sec)
-float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 4095, 4095};  // Max Servo velocity (units/sec)
-float accell[] = { 350, 480, 150,1800,1800, 300, 300,  12800,  12800};  // Servo acceleration (units/sec^2)
+float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
+float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
+float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current velocity (units/sec)
+float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
+float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
 
 
 // Animation Presets 
@@ -420,8 +417,8 @@ void evaluateCommand(const char command, int number) {
 	
 	// Motor Inputs and Offsets
 	// -- -- -- -- -- -- -- -- -- -- -- -- -- --
-	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 40.95); 		// Forward/reverse control
-	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 40.95); 		// Left/right control
+	if      (command == 'X' && number >= -100 && number <= 100) turnVal = int(number * 2.55); 		// Forward/reverse control
+	else if (command == 'Y' && number >= -100 && number <= 100) moveVal = int(number * 2.55); 		// Left/right control
 	else if (command == 'S' && number >=  100 && number <= 100) turnOff = number; 					// Steering offset
 	else if (command == 'O' && number >=    0 && number <= 250) curpos[7] = curpos[8] = int(number); 	// Motor deadzone offset
 

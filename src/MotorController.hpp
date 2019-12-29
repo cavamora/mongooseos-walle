@@ -10,6 +10,8 @@
 #ifndef MOTOR_CONTROLLER_HPP
 #define MOTOR_CONTROLLER_HPP
 
+#define USE_I2C_FOR_MOTORS 1 //if pwd of motors go through i2c, we must multiply for 16
+
 #include "Adafruit_PWMServoDriver.h"
 #include "mgos.h"
 
@@ -78,8 +80,13 @@ MotorController::~MotorController() {
 void MotorController::setSpeed(int pwmValue) {
 
 	// Bound the PWM value to +-4095
-	if (pwmValue > 4095) pwmValue = 4095;
-	else if (pwmValue < -4095) pwmValue = -4095;
+	//if (pwmValue > 4095) pwmValue = 4095;
+	//else if (pwmValue < -4095) pwmValue = -4095;
+	
+	// Bound the PWM value to +-255
+	if (pwmValue > 255) pwmValue = 255;
+	else if (pwmValue < -255) pwmValue = -255;
+
 	
 	// Forward direction
 	if (pwmValue > 0) {
@@ -92,6 +99,10 @@ void MotorController::setSpeed(int pwmValue) {
 	else {
 		mgos_gpio_write(in1, HIGH);
 		mgos_gpio_write(in2, LOW);
+	}
+
+	if (USE_I2C_FOR_MOTORS) {
+		pwmValue = pwmValue*16;
 	}
 	
 	// Send PWM value
