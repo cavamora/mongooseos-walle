@@ -16,19 +16,64 @@
   <body>
     <div id="joyDiv" style="width:200px;height:200px;margin-bottom:20px;margin:50px"></div>
 
-	Posizione X:<input id="posizioneX" type="text" /></br>
-	Posizione Y:<input id="posizioneY" type="text" /></br>
-	Direzione:<input id="direzione" type="text" /></br>
+	
   X :<input id="X" type="text" /></br>
   Y :<input id="Y" type="text" />
 
   <script>
+
+    var lastX = 0;
+    var lastY = 0;
+
+    function execCommand(repeat, wait) {
+
+        //console.log(repeat);
+
+        for (i=0;i<repeat;i++) {
+
+          //console.log(i);
+
+          var x = joy.GetX();
+          if (x > 100) x = 100;
+          if (x < -100) x = -100;
+          x = -x;
+
+          var y = joy.GetY();
+          if (y > 100) y = 100;
+          if (y < -100) y = -100;
+        
+          var params = "x=" + x + "&y=" + y;
+          
+          var xmlHttp = new XMLHttpRequest();
+          xmlHttp.open( "GET", "/walle/cmnd/move?" + params, !wait ); // false for synchronous request
+          xmlHttp.send( null );
+
+          lastX = joy.GetX();
+          lastY = joy.GetY();
+
+        }
+
+        //return xmlHttp.responseText;
+
+    }
     
-    function execComand(params) {
-        var xmlHttp = new XMLHttpRequest();
-        xmlHttp.open( "GET", "/walle/cmnd/move?" + params, true ); // false for synchronous request
-        xmlHttp.send( null );
-        return xmlHttp.responseText;
+    function checkCommand() {
+
+      //avoid flooding command 
+      if (lastX != joy.GetX() || lastY != joy.GetY()) {
+
+        //edges (move)
+        if (joy.GetX() >= 100 || joy.GetY() >= 100 || joy.GetX() <= -100 || joy.GetY() <= -100) {
+          execCommand(1, false); 
+        }
+
+        //stop
+        else if (joy.GetX() == 0 && joy.GetY() == 0 ) {
+          execCommand(1, true);
+        }
+
+      }
+
     }
     
 </script>
@@ -36,19 +81,20 @@
 
     <script type="text/javascript">
 // Create JoyStick object into the DIV 'joyDiv'
+
 var joy = new JoyStick('joyDiv');
 
-var inputPosX = document.getElementById("posizioneX");
-var inputPosY = document.getElementById("posizioneY");
-var direzione = document.getElementById("direzione");
+//var inputPosX = document.getElementById("posizioneX");
+//var inputPosY = document.getElementById("posizioneY");
+//var direzione = document.getElementById("direzione");
 var x = document.getElementById("X");
 var y = document.getElementById("Y");
 
-setInterval(function(){ var params = "x=" + joy.GetX() + "&y=" + joy.GetY(); execComand(params);  }, 50);
+setInterval(function(){ checkCommand();  }, 50);
 
-setInterval(function(){ inputPosX.value=joy.GetPosX(); }, 50);
-setInterval(function(){ inputPosY.value=joy.GetPosY(); }, 50);
-setInterval(function(){ direzione.value=joy.GetDir(); }, 50);
+//setInterval(function(){ inputPosX.value=joy.GetPosX(); }, 50);
+//setInterval(function(){ inputPosY.value=joy.GetPosY(); }, 50);
+//setInterval(function(){ direzione.value=joy.GetDir(); }, 50);
 setInterval(function(){ x.value=joy.GetX(); }, 50);
 setInterval(function(){ y.value=joy.GetY(); }, 50);
     </script>

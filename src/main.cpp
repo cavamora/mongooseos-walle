@@ -759,7 +759,10 @@ static void net_rpc_walle_move_handler(struct mg_rpc_request_info *ri, void *cb_
   int x = 0;
   int y = 0;
 
-  if (json_scanf(args.p, args.len, ri->args_fmt, &x, &y) == 1) { 
+  
+  LOG(LL_INFO, ("RPC args : %.*s", (int)args.len, args.p)); 
+
+  if (json_scanf(args.p, args.len, ri->args_fmt, &x, &y) == 2) { 
 
     LOG(LL_INFO, ("OK: x=%d y=%d", x, y)); 
 	evaluateCommand('X', x);
@@ -785,7 +788,7 @@ static void net_rpc_walle_exec_handler(struct mg_rpc_request_info *ri, void *cb_
   int val = 0;
   char *cmd = 0;
 
-  if (json_scanf(args.p, args.len, ri->args_fmt, &cmd, &val) == 1) { 
+  if (json_scanf(args.p, args.len, ri->args_fmt, &cmd, &val) == 2) { 
 
     LOG(LL_INFO, ("OK: cmd=%s val=%d", cmd, val)); 
 	evaluateCommand(cmd[0], val);

@@ -62,8 +62,8 @@
           ws.send(JSON.stringify({
                 method: "Walle.Move",
                 args: {
-                  x: joy.GetX(),
-                  y: joy.GetY()
+                  x: parseInt(joy.GetX()),
+                  y: parseInt(joy.GetY())
                 }
               }));
 
