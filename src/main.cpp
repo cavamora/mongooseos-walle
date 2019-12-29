@@ -31,15 +31,15 @@
 
 // Define the pin-mapping
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
-#define IN1_L 12           // Motor direction pins								D6
-#define IN2_L 14           // Motor brake pins									D5
+#define IN1_L 14           // Motor direction pins								D5
+#define IN2_L 12           // Motor brake pins									D6
 #define PWM_L 8            // Motor PWM pins (on PCA9685)
 
 #define IN1_R 13															//  D7
 #define IN2_R 15
 #define PWM_R 7																//  D8
 
-#define SR_OE -1 	       // Servo shield output enable pin					D0					
+#define SR_OE 0 	       // Servo shield output enable pin					D3					
 
 
 
@@ -118,11 +118,11 @@ int preset[][2] =  {{410, 125},   // head rotation
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo Pins:	     0,   1,   2,   3,   4,   5,   6,   -,   -
 // Joint Name:	  head,necT,necB,eyeR,eyeL,armL,armR,motL,motR
-float curpos[] = { 248, 560, 140, 475, 270, 250, 290,  180,  180};  // Current position (units)
+float curpos[] = { 248, 560, 140, 475, 270, 250, 290,  2880,  2880};  // Current position (units)
 float setpos[] = { 248, 560, 140, 475, 270, 250, 290,    0,    0};  // Required position (units)
 float curvel[] = {   0,   0,   0,   0,   0,   0,   0,    0,    0};  // Current velocity (units/sec)
 float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 4095, 4095};  // Max Servo velocity (units/sec)
-float accell[] = { 350, 480, 150,1800,1800, 300, 300,  800,  800};  // Servo acceleration (units/sec^2)
+float accell[] = { 350, 480, 150,1800,1800, 300, 300,  12800,  12800};  // Servo acceleration (units/sec^2)
 
 
 // Animation Presets 
@@ -811,7 +811,7 @@ static void net_rpc_walle_exec_handler(struct mg_rpc_request_info *ri, void *cb_
  * BLYNK
 *******************************************************************************************************/
 
-
+/*
 static void blynk_report (char *bytes) {
   
   
@@ -830,7 +830,7 @@ static void blynk_report (char *bytes) {
   }
   
 }
-
+*/
 
 
 static void blynk_handler(struct mg_connection *c, const char *cmd,
@@ -996,7 +996,7 @@ static void uart_dispatcher(int uart_no, void *arg) {
  * OTHERS
 *******************************************************************************************************/
 
-
+/*
 static void gpio_int_handler_flash(int pin, void *arg) {
   LOG(LL_INFO, ("botao flash pressionado"));
 
@@ -1024,6 +1024,7 @@ static void gpio_int_handler_flash(int pin, void *arg) {
   (void) arg;
   (void) pin;
 }
+*/
 
 
 
@@ -1072,7 +1073,7 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, net_cb, NULL);
 
 	//botao flash para reset
-	mgos_gpio_set_button_handler(0, MGOS_GPIO_PULL_UP, MGOS_GPIO_INT_EDGE_POS, 50, gpio_int_handler_flash, NULL);
+	//mgos_gpio_set_button_handler(0, MGOS_GPIO_PULL_UP, MGOS_GPIO_INT_EDGE_POS, 50, gpio_int_handler_flash, NULL);
 
 	//led for wifi state
 	mgos_gpio_set_mode(STATUS_LED_GPIO, MGOS_GPIO_MODE_OUTPUT);
