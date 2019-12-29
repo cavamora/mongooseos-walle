@@ -16,47 +16,62 @@
   <body>
     <div id="joyDiv" style="width:200px;height:200px;margin-bottom:20px;margin:50px"></div>
 
-	
+	Socket Status:<input id="socketStatus" type="text" /></br>
   X :<input id="X" type="text" /></br>
   Y :<input id="Y" type="text" />
 
-  <script>
+  <script type = "text/javascript">
+      var wsUri = 'wss://echo.websocket.org';
+      //var ws = {};
 
+      //if ("WebSocket" in window) {
+        console.log("WebSocket is supported by your Browser! IP:" + wsUri);
+
+        // Let us open a web socket
+        var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/rpc")//new WebSocket(wsUri);
+
+        ws.onopen = function() {
+          console.log("Connection is open..."); 
+            
+        };
+
+        ws.onmessage = function (evt) { 
+            var received_msg = evt.data;
+            console.log(received_msg);
+        };
+
+        ws.onclose = function() { 
+
+            // websocket is closed.
+            console.log("Connection is closed..."); 
+        };
+      //} else {
+
+        // The browser doesn't support WebSocket
+      //  alert("WebSocket NOT supported by your Browser!");
+      //}
+    
     var lastX = 0;
     var lastY = 0;
+    
+    function execCommand() {
+        // Web Socket is connected, send data using send()
+        if (typeof ws !== 'undefined' && (lastX !== joy.GetX() || lastY !== joy.GetY() )) {
+          ws.send(JSON.stringify({
+                method: "Walle.Move",
+                args: {
+                  x: parseInt(joy.GetX()),
+                  y: parseInt(joy.GetY())
+                }
+              }));
 
-    function execCommand(repeat, wait) {
-
-        //console.log(repeat);
-
-        for (i=0;i<repeat;i++) {
-
-          //console.log(i);
-
-          var x = joy.GetX();
-          if (x > 100) x = 100;
-          if (x < -100) x = -100;
-          x = -x;
-
-          var y = joy.GetY();
-          if (y > 100) y = 100;
-          if (y < -100) y = -100;
-        
-          var params = "x=" + x + "&y=" + y;
-          
-          var xmlHttp = new XMLHttpRequest();
-          xmlHttp.open( "GET", "/walle/cmnd/move?" + params, !wait ); // false for synchronous request
-          xmlHttp.send( null );
-
-          lastX = joy.GetX();
-          lastY = joy.GetY();
+        lastX = joy.GetX();
+        lastY = joy.GetY();
 
         }
 
-        //return xmlHttp.responseText;
-
     }
-    
+
     function checkCommand() {
 
       //avoid flooding command 
@@ -64,24 +79,19 @@
 
         //edges (move)
         if (joy.GetX() >= 100 || joy.GetY() >= 100 || joy.GetX() <= -100 || joy.GetY() <= -100) {
-          execCommand(1, false); 
+          execCommand(); 
         }
 
         //stop
         else if (joy.GetX() == 0 && joy.GetY() == 0 ) {
-          execCommand(1, true);
+          execCommand();
         }
 
       }
 
     }
     
-</script>
-
-
-    <script type="text/javascript">
 // Create JoyStick object into the DIV 'joyDiv'
-
 var joy = new JoyStick('joyDiv');
 
 //var inputPosX = document.getElementById("posizioneX");
@@ -90,6 +100,8 @@ var joy = new JoyStick('joyDiv');
 var x = document.getElementById("X");
 var y = document.getElementById("Y");
 
+var socketStatus = document.getElementById("socketStatus");
+
 setInterval(function(){ checkCommand();  }, 50);
 
 //setInterval(function(){ inputPosX.value=joy.GetPosX(); }, 50);
@@ -97,6 +109,10 @@ setInterval(function(){ checkCommand();  }, 50);
 //setInterval(function(){ direzione.value=joy.GetDir(); }, 50);
 setInterval(function(){ x.value=joy.GetX(); }, 50);
 setInterval(function(){ y.value=joy.GetY(); }, 50);
+
+setInterval(function(){ socketStatus.value=ws.readyState; }, 50);
+
+
     </script>
   </body>
 </html>
