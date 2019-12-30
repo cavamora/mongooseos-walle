@@ -13,7 +13,7 @@
 #include "mgos_sys_config.h"
 #include "mgos_utils.h"
 #include "mgos.h"
-#include "mgos_blynk.h"
+//#include "mgos_blynk.h"
 #include "mgos_rpc.h"
 #include "mgos_http_server.h"
 #include "mgos_gpio.h"
@@ -33,11 +33,10 @@
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 #define IN1_L 14           // Motor direction pins								D5
 #define IN2_L 12           // Motor brake pins									D6
-#define PWM_L 8            // Motor PWM pins (on PCA9685)
+
 
 #define IN1_R 13															//  D7
-#define IN2_R 15
-#define PWM_R 7																//  D8
+#define IN2_R 15														    //  D8
 
 #define SR_OE -1 	       // Servo shield output enable pin					D3					
 
@@ -65,10 +64,6 @@ mgos_timer_id ptr_timer_loop;
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo shield controller class - assumes default address 0x40
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-
-// Set up motor controller classes
-MotorController motorL(IN1_L, IN2_L, PWM_L, &pwm);
-MotorController motorR(IN1_R, IN2_R, PWM_R, &pwm);
 
 // Queue for animations
 Queue <int> queue(400);
@@ -113,7 +108,7 @@ int preset[][2] =  {{410, 125},   // head rotation
 
 // Servo Control - Position, Velocity, Acceleration
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
-// Servo Pins:	     0,   1,   2,   3,   4,   5,   6,   -,   -
+
 // Joint Name:	  head,necT,necB,eyeR,eyeL,armL,armR,motL,motR
 float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
 float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
@@ -121,6 +116,11 @@ float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current vel
 float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
 float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
 
+int   i2cPins[] = {  0,   1,   2,   3,  12,  13,  14,   7,   8};  // Pins on I2C Board
+
+// Set up motor controller classes
+MotorController motorL(IN1_L, IN2_L, i2cPins[7], &pwm);
+MotorController motorR(IN1_R, IN2_R, i2cPins[8], &pwm);
 
 // Animation Presets 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -345,7 +345,7 @@ void manageServos(float dt) {
 			else curpos[i] = setpos[i];
 
       		LOG(LL_INFO, ("Mandando comando PWD %d para %d", (int) curpos[i], i));
-			pwm.setPWM(i, 0, curpos[i]);
+			pwm.setPWM(i2cPins[i], 0, curpos[i]);
 
 		} else {
 			curvel[i] = 0;
@@ -595,8 +595,9 @@ static void net_cb(int ev, void *evd, void *arg) {
       break;
     case MGOS_NET_EV_CONNECTED:
       LOG(LL_INFO, ("%s", "Net connected"));
-      mgos_clear_timer(ptr_timer_led_blinker);
-      ptr_timer_led_blinker = mgos_set_timer(100, MGOS_TIMER_REPEAT, status_led_blink, NULL);
+      //mgos_clear_timer(ptr_timer_led_blinker);
+      //ptr_timer_led_blinker = mgos_set_timer(100, MGOS_TIMER_REPEAT, status_led_blink, NULL);
+	  status_led_on();
       break;
     case MGOS_NET_EV_IP_ACQUIRED:
       LOG(LL_INFO, ("%s", "Net got IP address"));
@@ -785,7 +786,9 @@ static void net_rpc_walle_exec_handler(struct mg_rpc_request_info *ri, void *cb_
   int val = 0;
   char *cmd = 0;
 
-  if (json_scanf(args.p, args.len, ri->args_fmt, &cmd, &val) == 2) { 
+  LOG(LL_INFO, ("RPC args : %.*s", (int)args.len, args.p)); 
+
+  if (json_scanf(args.p, args.len, ri->args_fmt, &cmd, &val) >= 1) { 
 
     LOG(LL_INFO, ("OK: cmd=%s val=%d", cmd, val)); 
 	evaluateCommand(cmd[0], val);
@@ -832,7 +835,7 @@ static void blynk_report (char *bytes) {
 }
 */
 
-
+/*
 static void blynk_handler(struct mg_connection *c, const char *cmd,
                                   int pin, int val, int id, void *user_data, const uint8_t *raw_data, int raw_data_len) {
   
@@ -856,25 +859,7 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
   //READS
   else if (strcmp(cmd, "vr") == 0) {
     
-    /*
-    //memoria livre
-    if (pin == 1) {
-      LOG(LL_INFO, ("blynk_handler: mem"));
-      blynk_virtual_write(c, pin, (float) mgos_get_free_heap_size() / 1024 , id);
-    }
-
-    //numero atual
-    else if (pin == 6 || pin == 8 ) {
-      LOG(LL_INFO, ("blynk_handler: display number"));
-      blynk_virtual_write(c, pin, mgos_sys_config_get_display_number(), id );
-    }
-
-    //brilho atual
-    else if (pin == 7 || pin == 9) {
-      LOG(LL_INFO, ("blynk_handler: display bright"));
-      blynk_virtual_write(c, pin, mgos_sys_config_get_display_bright(), id );
-    }
-    */
+    
 
   } 
   
@@ -946,7 +931,7 @@ static void blynk_handler(struct mg_connection *c, const char *cmd,
   (void) user_data;
   (void) c;
 }
-
+*/
 
 
 
@@ -1081,7 +1066,7 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_event_add_handler(MGOS_EVENT_CLOUD_CONNECTED, cloud_cb, NULL);
 	mgos_event_add_handler(MGOS_EVENT_CLOUD_DISCONNECTED, cloud_cb, NULL);
 
-	blynk_set_handler(blynk_handler, NULL);
+	//blynk_set_handler(blynk_handler, NULL);
 
 	// Output Enable (EO) pin for the servo motors
 	mgos_gpio_set_mode(SR_OE, MGOS_GPIO_MODE_OUTPUT);
