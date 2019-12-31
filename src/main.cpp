@@ -1,6 +1,7 @@
 #include <stdio.h>
 
-#include "Adafruit_PWMServoDriver.h"
+//#include "Adafruit_PWMServoDriver.h"
+#include "mgos_arduino_PWMServoDriver.h"
 #include "Queue.hpp"
 #include "MotorController.hpp"
 #include "DFPlayerMini_Fast.h"
@@ -38,7 +39,7 @@
 #define IN1_R 13															//  D7
 #define IN2_R 15														    //  D8
 
-#define SR_OE -1 	       // Servo shield output enable pin					D3					
+#define SR_OE 0 	       // Servo shield output enable pin					D3					
 
 
 // Define other constants
@@ -63,7 +64,7 @@ mgos_timer_id ptr_timer_loop;
 // Instantiate objects
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
 // Servo shield controller class - assumes default address 0x40
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+Adafruit_PWMServoDriver *pwm = mgos_PWMServoDriver_create();
 
 // Queue for animations
 Queue <int> queue(400);
@@ -116,11 +117,11 @@ float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current vel
 float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
 float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
 
-int   i2cPins[] = {  0,   1,   2,   3,  12,  13,  14,   7,   8};  // Pins on I2C Board
+int   i2cPins[] = {  0,   1,   2,   3,  4,  5,  6,   7,   8};  // Pins on I2C Board
 
 // Set up motor controller classes
-MotorController motorL(IN1_L, IN2_L, i2cPins[7], &pwm);
-MotorController motorR(IN1_R, IN2_R, i2cPins[8], &pwm);
+MotorController motorL(IN1_L, IN2_L, i2cPins[7], pwm);
+MotorController motorR(IN1_R, IN2_R, i2cPins[8], pwm);
 
 // Animation Presets 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -320,7 +321,7 @@ void manageServos(float dt) {
 		// If position error is above the threshold
 		if (abs(posError) > THRESHOLD && (setpos[i] != -1)) {
 
-			mgos_gpio_write(SR_OE, LOW);
+			//mgos_gpio_write(SR_OE, LOW);
 			moving = true;
 
 			// Determine motion direction
@@ -345,7 +346,8 @@ void manageServos(float dt) {
 			else curpos[i] = setpos[i];
 
       		LOG(LL_INFO, ("Mandando comando PWD %d para %d", (int) curpos[i], i));
-			pwm.setPWM(i2cPins[i], 0, curpos[i]);
+			//pwm.setPWM(i2cPins[i], 0, curpos[i]);
+			mgos_PWMServoDriver_setPWM(pwm, i2cPins[i], 0, curpos[i]);
 
 		} else {
 			curvel[i] = 0;
@@ -355,7 +357,10 @@ void manageServos(float dt) {
 	// Disable servos if robot is not moving
 	// This prevents the motors from overheating
 	if (moving) motorTimer = millis() + MOTOR_OFF;
-	else if (millis() > motorTimer) mgos_gpio_write(SR_OE, HIGH);
+	else if (millis() > motorTimer) {
+		//LOG(LL_INFO, ("Disabling Motors..."));
+		//mgos_gpio_write(SR_OE, HIGH);
+	} 
 }
 
 
@@ -398,7 +403,9 @@ void manageMotors(float dt) {
 	}
 
 	if (curvel[SERVOS] > 0 || curvel[SERVOS+1] > 0 ) {
-		LOG(LL_INFO, ("Atualizando Motores: L:%d, R:%d", (int)curvel[SERVOS], (int)curvel[SERVOS+1]));
+		//LOG(LL_INFO, ("Atualizando Motores: L:%d, R:%d", (int)curvel[SERVOS], (int)curvel[SERVOS+1]));
+		//LOG(LL_INFO, ("Enabling Motors..."));
+		//mgos_gpio_write(SR_OE, LOW);
 	}
 
 	// Update motor speeds
@@ -518,6 +525,12 @@ void evaluateCommand(const char command, int number) {
 	else if (command == 'm') {		// Left arm high, right arm low
 		setpos[5] = preset[5][1];
 		setpos[6] = preset[6][0];
+	}
+
+	// ON/OFF Motors
+	else if (command == '.') {		// Left arm high, right arm low
+		int status = mgos_gpio_toggle(SR_OE);
+		LOG(LL_INFO, ("Toggling Motors to : %d", status));	
 	}
 }
 
@@ -1073,13 +1086,15 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_gpio_write(SR_OE, HIGH);
 
 	// Communicate with servo shield (Analog servos run at ~60Hz)
-	pwm.begin();
-  	pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
+	//pwm.begin();
+	mgos_PWMServoDriver_begin(pwm);
+  	//pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
+	mgos_PWMServoDriver_setPWMFreq(pwm, 60);  
 
 	LOG(LL_INFO, ("Starting Program"));
 
 	// Move servos to known starting positions
-	queueAnimation(softSeq, SOFT_LEN);
+	//queueAnimation(softSeq, SOFT_LEN);
 
 	ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
 

@@ -12,7 +12,8 @@
 
 #define USE_I2C_FOR_MOTORS 1 //if pwd of motors go through i2c, we must multiply for 16
 
-#include "Adafruit_PWMServoDriver.h"
+//#include "Adafruit_PWMServoDriver.h"
+#include "mgos_arduino_PWMServoDriver.h"
 #include "mgos.h"
 
 // MOTOR CONTROLLER CLASS
@@ -106,7 +107,9 @@ void MotorController::setSpeed(int pwmValue) {
 	}
 	
 	// Send PWM value
-	pwm->setPWM(pwmPin, 0, abs(pwmValue));
+	//pwm->setPWM(pwmPin, 0, abs(pwmValue));
+	
+	mgos_PWMServoDriver_setPWM(pwm, pwmPin, 0, abs(pwmValue));
 }
 
 
