@@ -1,167 +1,238 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-  <script src="axios.min.js"></script>
-  <style>
-    html, body { height: 100vh; padding: 0; margin: 0;}
-    * { outline: none !important; }
-    body { color: #454955; font: 15px/1.5 Verdana, Helvetica, Arial, sans-serif; }
-    h1, h2, h3, h4, h5, h6, b, th, strong, .nav-link { color: #777; }
-    input, button, div, pre, p { font: inherit; }
-    button {
-      color: white; padding: 0.4em 1em; border-radius: 0.3em;
-      border: none; cursor: pointer;
-    }
-    input[type=text] {
-      padding: 0.2em 0.7em; position: relative;
-      border: 1px solid #cdcdcd; border-color: rgba(0, 0, 0, .15);
-      background-color: white; font-size: 16px;
-    }
-    h1 { margin: 0; padding-top: 0.5em; text-align: center; }
-    .container { padding: 0 1em; margin: 1em auto; max-width: 960px; background: #fafafa; }
-    .form-control { margin: 0.5em 0; }
-    .form-control input, .form-control button { min-width: 15em; }
-    .form label { min-width: 8em; display: inline-block; }
-    .form { padding: 1em 0; }
-    .btn { background: #2079b0; }
-    .spin {
-      display: inline-block; width: 0.9em; height: 0.9em;
-      margin-bottom: -0.2em; 
-      border: 0.15em solid rgba(255,255,255,.5);
-      border-radius: 50%;
-      border-top-color: #fff;
-      animation: spin 1s linear infinite;
-      -webkit-animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
-  </style>
-  </head>
-  <body>
-    <div class="container">
-      <h1 class="">WiFi setup</h1>
-      <div class="form">
-        <div class="">
-          
-          <div class="form-control">
-            <label>WiFi network:</label>
-            <input type="text" id="ssid">
-          </div>
-          <div class="form-control">
-            <label>WiFi password:</label>
-            <input type="text" id="pass">
-          </div>
-          
-          <div class="form-control">
-            <label>mDash Token:</label>
-            <input type="text" id="dash_token">
-          </div>
+<!DOCTYPE HTML>
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-          <div class="form-control">
-            <label>Blynk Token:</label>
-            <input type="text" id="blynk_auth">
-          </div>
-          
-         
-
-          <div class="form-control">
-            <label></label>
-            <button class="btn" id="save">
-              <span id="spinner"></span>
-              Save
-            </button>
-            
-          </div>
-          <div class="form-control">
-            <label></label>
-            
-            <button class="btn" id="reset">
-              <span id="spinner"></span>
-              Factory Reset
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <script>
-      var resetButton = document.getElementById('reset');
-      var saveButton = document.getElementById('save');
-      var spinnerSpan = document.getElementById('spinner');
-      
-      resetButton.onclick = function() {
-
-        spinnerSpan.className = 'spin';
-      
-
-        axios.post('/rpc/Config.Reset').then(function(res) {
-          spinnerSpan.className = '';
-        }).catch(function(err) {
-          alert(err);
-        });
-      }
-
-      
-      saveButton.onclick = function() {
-        spinnerSpan.className = 'spin';
+<head>
+    <title>Joy</title>
+    <style>
+        body {
+            margin: 0px;
+            padding: 0px;
+        }
         
-        var ssid = document.getElementById('ssid').value || '';
-        var pass = document.getElementById('pass').value || '';
+        #joystick {
+            border: 1px solid #9C9898;
+        }
+    </style>
+    <script src="joy.min.js"></script>
+</head>
 
-        
-        var dash_token = document.getElementById('dash_token').value || '';
-        var blynk_auth = document.getElementById('blynk_auth').value || '';
-        
-        
-        
-        //var losant_device_id = document.getElementById('losant_device_id').value || '';
-        //var losant_user = document.getElementById('losant_user').value || '';
-        //var losant_pass = document.getElementById('losant_pass').value || '';
+<body>
+  <!--joystick-->
+  <div id="joyDiv" style="width:200px;height:200px;margin-bottom:20px;margin:50px"></div>
+  <!--buttons-->
+  <div style="text-align:center;width:320px;">
+    <button onclick="execFunction({'cmd': '.'})">ON/OFF Motors</button>
+    <button onclick="execFunction({'cmd': ':'})">Restart PWM</button>
+    </br>
+  </div>
+  </br>
+  </br>
 
+  <div style="text-align:center;width:320px;">
+    Head</br> 
+    <button onclick="execFunction({'cmd': 'j'})">Left Tilt</button>
+    <button onclick="execFunction({'cmd': 'l'})">Right Tilt</button>
+    </br> 
+    <button onclick="execFunction({'cmd': 'k'})">Normal Face</button>
+    <button onclick="execFunction({'cmd': 'i'})">Sad Face</button>
+    </br> 
+    <button onclick="execFunction({'cmd': 'f'})">Head Up</button>
+    <button onclick="execFunction({'cmd': 'h'})">Head Down</button>
+    <button onclick="execFunction({'cmd': 'g'})">Head Forward</button>
+    </br> 
+    <button onclick="execFunction({'cmd': 'v'})">Look Left</button>
+    <button onclick="execFunction({'cmd': 'c'})">Look Right</button>
+    <button onclick="execFunction({'cmd': 'x'})">Look Forward</button>
+    </br> 
+   
+  </div>
+  </br>
+  </br>
 
-        var data = {};
-        data.config = {};
+  <div style="text-align:center;width:320px;">
+    Arms</br> 
+    <button onclick="execFunction({'cmd': 'n'})">Neutral</button>
+    <button onclick="execFunction({'cmd': 'b'})">Right High</button>
+    <button onclick="execFunction({'cmd': 'm'})">Left High</button>
+    </br> 
+   
+  </div>
+  </br>
+  </br>
 
-        if (ssid != '') {
-        
-          data.config.wifi = {};
-          
-          data.config.wifi.sta = {};
-          data.config.wifi.sta.enable = true;
-          data.config.wifi.sta.ssid = ssid;
-          data.config.wifi.sta.pass = pass;
+  <div style="text-align:center;width:320px;">
+    Animations</br> 
+    <button onclick="execFunction({'cmd': 'A', 'val': 0})">0</button>
+    <button onclick="execFunction({'cmd': 'A', 'val': 1})">1</button>
+    <button onclick="execFunction({'cmd': 'A', 'val': 2})">2</button>
+  </div>  
+  </br>
+  </br>
 
-          //data.config.wifi.ap = {};
-          //data.config.wifi.ap.enable = false;
-          
+  <div style="text-align:center;width:320px;">
+    Auto Servos</br> 
+    <button onclick="execFunction({'cmd': 'M', 'val': 0})">0</button>
+    <button onclick="execFunction({'cmd': 'M', 'val': 1})">1</button>
+  </div>  
+  </br>
+  </br>
+
+  <div style="text-align:center;width:320px;">
+    Test Servos</br> 
+    <button onclick="execFunction({'cmd': ';', 'val': 0})">H</button>
+    <button onclick="execFunction({'cmd': ';', 'val': 1})">NT</button>
+    <button onclick="execFunction({'cmd': ';', 'val': 2})">NB</button>
+    <button onclick="execFunction({'cmd': ';', 'val': 3})">EL</button>
+    <button onclick="execFunction({'cmd': ';', 'val': 4})">ER</button>
+    <button onclick="execFunction({'cmd': ';', 'val': 5})">AL</button>
+    <button onclick="execFunction({'cmd': ';', 'val': 6})">AR</button>
+  </br>
+  </br>
+    Manual Servo Command</br> 
+    <input type="text" id="servoId" value="0">
+    <input type="text" id="servoPwd" value="400">
+    <button onclick="sendCommandToServo()">Send Command</button>
+  </div>  
+  </br>
+  </br>
+
+  <div style="text-align:center;width:320px;">
+    <button onclick="window.location.href='setup.html'">Setup</button>
+    </br>
+  </div>
+  </br>
+  </br>
+
+    Socket Status:</br> 
+    <input id="socketStatus" type="text" />
+    </br>
+    
+
+    <script type="text/javascript">
+
+        // Let us open a web socket
+        var ws = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/rpc") //new WebSocket(wsUri);
+
+        ws.onopen = function() {
+            console.log("Connection is open...");
+
         };
 
+        ws.onmessage = function(evt) {
+            var received_msg = evt.data;
+            console.log(received_msg);
+        };
 
-        if (dash_token != '') {
-          data.config.dash = {};
-          data.config.dash.enable = true
-          data.config.dash.token = dash_token
-        
+        ws.onclose = function() {
+
+            // websocket is closed.
+            console.log("Connection is closed...");
+        };
+        //} else {
+
+        // The browser doesn't support WebSocket
+        //  alert("WebSocket NOT supported by your Browser!");
+        //}
+
+        var lastX = 0;
+        var lastY = 0;
+
+        function execFunction(args) {
+
+            ws.send(JSON.stringify({
+                method: "Walle.Exec",
+                args
+            }));
+
+            lastX = joy.GetX();
+            lastY = joy.GetY();
+
         }
 
-        if (blynk_auth != '') {
-          data.config.blynk = {};
-          data.config.blynk.enable = true
-          data.config.blynk.auth = blynk_auth
+        function sendCommandToServo() {
+
+          var args = {
+            cmd: document.getElementById("servoId").value , 
+            val: parseInt(document.getElementById("servoPwd").value)  
+            }
+
+          execFunction(args);
+
+        }
+
+        function execCommandMove() {
+            // Web Socket is connected, send data using send()
+            if (typeof ws !== 'undefined' && (lastX !== joy.GetX() || lastY !== joy.GetY())) {
+
+                var x = -parseInt(joy.GetX());
+                var y = parseInt(joy.GetY());
+
+                ws.send(JSON.stringify({
+                    method: "Walle.Move",
+                    args: {
+                        x: x,
+                        y: y
+                    }
+                }));
+
+                lastX = joy.GetX();
+                lastY = joy.GetY();
+
+            }
 
         }
 
 
-        axios.post('/rpc/Config.Set', data).then(function(res) {
-          return axios.post('/rpc/Config.Save', {reboot: true});
-        }).catch(function(err) {
-          alert(err);
-        }).then(function() {
-          spinnerSpan.className = '';
-        });
-      };
-    
+
+        function checkCommandMove() {
+
+            //avoid flooding command 
+            if (lastX != joy.GetX() || lastY != joy.GetY()) {
+
+                //edges (move)
+                if (joy.GetX() >= 100 || joy.GetY() >= 100 || joy.GetX() <= -100 || joy.GetY() <= -100) {
+                  execCommandMove();
+                }
+
+                //stop
+                else if (joy.GetX() == 0 && joy.GetY() == 0) {
+                  execCommandMove();
+                }
+
+            }
+
+        }
+
+        // Create JoyStick object into the DIV 'joyDiv'
+        var joy = new JoyStick('joyDiv');
+  
+        var x = document.getElementById("X");
+        var y = document.getElementById("Y");
+
+        var socketStatus = document.getElementById("socketStatus");
+
+        setInterval(function() {
+          checkCommandMove();
+        }, 50);
+
+        setInterval(function() {
+          switch(ws.readyState) {
+            case 0:
+              socketStatus.value = "Connecting";
+              break;
+            case 1:
+              socketStatus.value = "Connected";
+              break;
+            case 2:
+              socketStatus.value = "Closing";
+              break;
+            default:
+              socketStatus.value = "Closed";
+          }
+            
+        }, 1000);
     </script>
+</body>
 
-  </body>
 </html>

@@ -51,6 +51,10 @@
 #define MAX_SERIAL 5       // Maximum number of characters that can be received
 
 
+#define TEST_SERVOMIN  300 // this is the 'minimum' pulse length count (out of 4096)
+#define TEST_SERVOMAX  400 // this is the 'maximum' pulse length count (out of 4096)
+
+
 
 /******************************************************************************************************
  * GLOBAL VARS
@@ -117,7 +121,7 @@ float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current vel
 float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
 float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
 
-int   i2cPins[] = {  0,   1,   2,   3,  4,  5,  6,   7,   8};  // Pins on I2C Board
+int   i2cPins[] = {  0,   1,   2,   3,   4,   5,   6,   7,   8};  // Pins on I2C Board
 
 // Set up motor controller classes
 MotorController motorL(IN1_L, IN2_L, i2cPins[7], pwm);
@@ -222,6 +226,27 @@ void util_save_cfg() {
  * WALLE
 *******************************************************************************************************/
 
+void restartPWM() {
+
+	LOG(LL_INFO, ("Restarting PWM"));
+	
+	pwm->reset(); 
+
+}
+
+void testServo(int servoNum) {
+	for (uint16_t pulselen = TEST_SERVOMIN; pulselen < TEST_SERVOMAX; pulselen++) {
+		//pwm.setPWM(servoNum, 0, pulselen);
+		mgos_PWMServoDriver_setPWM(pwm, servoNum, 0, pulselen);
+	}
+
+
+	for (uint16_t pulselen = TEST_SERVOMAX; pulselen > TEST_SERVOMIN; pulselen--) {
+		//pwm.setPWM(servoNum, 0, pulselen);
+		mgos_PWMServoDriver_setPWM(pwm, servoNum, 0, pulselen);
+	}
+
+}
 
 // ------------------------------------------------------------------
 // 		QUEUE ANIMATIONS
@@ -528,9 +553,46 @@ void evaluateCommand(const char command, int number) {
 	}
 
 	// ON/OFF Motors
-	else if (command == '.') {		// Left arm high, right arm low
+	else if (command == '.') {		
 		int status = mgos_gpio_toggle(SR_OE);
 		LOG(LL_INFO, ("Toggling Motors to : %d", status));	
+	}
+
+	// Test Servo
+	else if (command == ';') {		
+		LOG(LL_INFO, ("Testing servo : %d", number));	
+		testServo(number);
+		
+	}
+
+	// Reset PWM
+	else if (command == ':') {		
+		LOG(LL_INFO, ("Reseting PWM"));	
+		restartPWM();
+		
+	}
+
+	//manual comands to servos
+	else if (command == '0') {	
+		mgos_PWMServoDriver_setPWM(pwm, 0, 0, number);
+	}
+	else if (command == '1') {	
+		mgos_PWMServoDriver_setPWM(pwm, 1, 0, number);
+	}
+	else if (command == '2') {	
+		mgos_PWMServoDriver_setPWM(pwm, 2, 0, number);
+	}
+	else if (command == '3') {	
+		mgos_PWMServoDriver_setPWM(pwm, 3, 0, number);
+	}
+	else if (command == '4') {	
+		mgos_PWMServoDriver_setPWM(pwm, 4, 0, number);
+	}
+	else if (command == '5') {	
+		mgos_PWMServoDriver_setPWM(pwm, 5, 0, number);
+	}
+	else if (command == '6') {	
+		mgos_PWMServoDriver_setPWM(pwm, 6, 0, number);
 	}
 }
 
