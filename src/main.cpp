@@ -39,7 +39,7 @@
 #define IN1_R 13															//  D7
 #define IN2_R 15														    //  D8
 
-#define SR_OE 0 	       // Servo shield output enable pin					D3					
+#define SR_OE -1 	       // Servo shield output enable pin					D3					
 
 
 // Define other constants
@@ -101,13 +101,13 @@ DFPlayerMini_Fast mp3_player;
 
 // ****** SERVO MOTOR CALIBRATION *********************
 // Servo Positions:  Low,High
-int preset[][2] =  {{410, 125},   // head rotation
+int preset[][2] =  {{400, 200},   // head rotation		OK
                     {205, 538},   // neck top
                     {140, 450},   // neck bottom
-                    {485, 230},   // eye right
-                    {274, 495},   // eye left
-                    {355, 137},   // arm left
-                    {188, 420}};  // arm right
+                    {440, 300},   // eye right			OK
+                    {180, 300},   // eye left			OK
+                    {370, 220},   // arm left			OK
+                    {230, 350}};  // arm right			OK
 // *****************************************************
 
 
@@ -346,7 +346,7 @@ void manageServos(float dt) {
 		// If position error is above the threshold
 		if (abs(posError) > THRESHOLD && (setpos[i] != -1)) {
 
-			//mgos_gpio_write(SR_OE, LOW);
+			mgos_gpio_write(SR_OE, LOW);
 			moving = true;
 
 			// Determine motion direction
@@ -384,7 +384,7 @@ void manageServos(float dt) {
 	if (moving) motorTimer = millis() + MOTOR_OFF;
 	else if (millis() > motorTimer) {
 		//LOG(LL_INFO, ("Disabling Motors..."));
-		//mgos_gpio_write(SR_OE, HIGH);
+		mgos_gpio_write(SR_OE, HIGH);
 	} 
 }
 
@@ -429,8 +429,8 @@ void manageMotors(float dt) {
 
 	if (curvel[SERVOS] > 0 || curvel[SERVOS+1] > 0 ) {
 		//LOG(LL_INFO, ("Atualizando Motores: L:%d, R:%d", (int)curvel[SERVOS], (int)curvel[SERVOS+1]));
-		//LOG(LL_INFO, ("Enabling Motors..."));
-		//mgos_gpio_write(SR_OE, LOW);
+		LOG(LL_INFO, ("Enabling Motors..."));
+		mgos_gpio_write(SR_OE, LOW);
 	}
 
 	// Update motor speeds
