@@ -39,7 +39,7 @@
 #define IN1_R 13															//  D7
 #define IN2_R 15														    //  D8
 
-#define SR_OE -1 	       // Servo shield output enable pin					D3					
+#define SR_OE 0 	       // Servo shield output enable pin					D3					
 
 
 // Define other constants
@@ -101,11 +101,11 @@ DFPlayerMini_Fast mp3_player;
 
 // ****** SERVO MOTOR CALIBRATION *********************
 // Servo Positions:  Low,High
-int preset[][2] =  {{400, 200},   // head rotation		OK
-                    {205, 538},   // neck top
-                    {140, 450},   // neck bottom
-                    {440, 300},   // eye right			OK
-                    {180, 300},   // eye left			OK
+int preset[][2] =  {{430, 230},   // head rotation		OK
+                    {230, 450},   // neck top			OK 	1   450 (up)
+                    {200, 500},   // neck bottom		OK  2   500 (up) 200 (down)
+                    {500, 300},   // eye right			OK  3
+                    {300, 440},   // eye left			OK  4   440 (low)  300 (high)
                     {370, 220},   // arm left			OK
                     {230, 350}};  // arm right			OK
 // *****************************************************
@@ -118,10 +118,10 @@ int preset[][2] =  {{400, 200},   // head rotation		OK
 float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
 float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
 float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current velocity (units/sec)
-float maxvel[] = { 500, 750, 255,2400,2400, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
-float accell[] = { 350, 480, 150,1800,1800, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
+float maxvel[] = { 500, 750, 255,500,500, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
+float accell[] = { 350, 480, 150,350,350, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
 
-int   i2cPins[] = {  0,   1,   2,   3,   4,   5,   6,   7,   8};  // Pins on I2C Board
+int   i2cPins[] = {  0,   1,   2,   3,   4,   5,   6,   8,   9};  // Pins on I2C Board
 
 // Set up motor controller classes
 MotorController motorL(IN1_L, IN2_L, i2cPins[7], pwm);
@@ -346,7 +346,7 @@ void manageServos(float dt) {
 		// If position error is above the threshold
 		if (abs(posError) > THRESHOLD && (setpos[i] != -1)) {
 
-			mgos_gpio_write(SR_OE, LOW);
+			//mgos_gpio_write(SR_OE, LOW);
 			moving = true;
 
 			// Determine motion direction
@@ -374,6 +374,8 @@ void manageServos(float dt) {
 			//pwm.setPWM(i2cPins[i], 0, curpos[i]);
 			mgos_PWMServoDriver_setPWM(pwm, i2cPins[i], 0, curpos[i]);
 
+			break;
+
 		} else {
 			curvel[i] = 0;
 		}
@@ -384,7 +386,7 @@ void manageServos(float dt) {
 	if (moving) motorTimer = millis() + MOTOR_OFF;
 	else if (millis() > motorTimer) {
 		//LOG(LL_INFO, ("Disabling Motors..."));
-		mgos_gpio_write(SR_OE, HIGH);
+		//mgos_gpio_write(SR_OE, HIGH);
 	} 
 }
 
@@ -430,7 +432,7 @@ void manageMotors(float dt) {
 	if (curvel[SERVOS] > 0 || curvel[SERVOS+1] > 0 ) {
 		//LOG(LL_INFO, ("Atualizando Motores: L:%d, R:%d", (int)curvel[SERVOS], (int)curvel[SERVOS+1]));
 		LOG(LL_INFO, ("Enabling Motors..."));
-		mgos_gpio_write(SR_OE, LOW);
+		//mgos_gpio_write(SR_OE, LOW);
 	}
 
 	// Update motor speeds
@@ -1116,17 +1118,19 @@ static void loop(void *arg) {
 
 enum mgos_app_init_result mgos_app_init(void) {
 
+
+	/*
 	struct mgos_uart_config ucfg;
 	mgos_uart_config_set_defaults(mgos_sys_config_get_walle_uart_no(), &ucfg);
 	ucfg.baud_rate = mgos_sys_config_get_walle_uart_baudrate();
 	if (!mgos_uart_configure(mgos_sys_config_get_walle_uart_no(), &ucfg)) {
 		return MGOS_APP_INIT_ERROR;
 	}
-	//mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL /* arg */);
+	//mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL );
 	mgos_uart_set_rx_enabled(mgos_sys_config_get_walle_uart_no(), true);
 
 	mp3_player.begin(mgos_sys_config_get_walle_uart_no());
-
+	*/
 
 
 	/* Network connectivity events */
