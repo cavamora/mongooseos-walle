@@ -44,7 +44,7 @@
 
 // Define other constants
 // -- -- -- -- -- -- -- -- -- -- -- -- -- --
-#define FREQUENCY 10       // Time in milliseconds of how often to update servo and motor positions
+#define FREQUENCY 50       // Time in milliseconds of how often to update servo and motor positions
 #define SERVOS 7           // Number of servo motors
 #define THRESHOLD 1        // The minimum error which the dynamics controller tries to achieve
 #define MOTOR_OFF 6000 	   // Turn servo motors off after 6 seconds
@@ -118,8 +118,8 @@ int preset[][2] =  {{430, 230},   // head rotation		OK
 float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
 float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
 float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current velocity (units/sec)
-float maxvel[] = { 500, 750, 255,500,500, 500, 500, 255, 255};  // Max Servo velocity (units/sec)
-float accell[] = { 350, 480, 150,350,350, 300, 300, 800, 800};  // Servo acceleration (units/sec^2)
+float maxvel[] = { 10000, 10000, 10000,10000,10000, 10000, 10000, 1000, 1000};  // Max Servo velocity (units/sec)
+float accell[] = { 10000, 10000, 10000,10000,10000, 10000, 10000,2000,2000};  // Servo acceleration (units/sec^2)
 
 int   i2cPins[] = {  0,   1,   2,   3,   4,   5,   6,   8,   9};  // Pins on I2C Board
 
@@ -343,8 +343,12 @@ void manageServos(float dt) {
 
 		float posError = setpos[i] - curpos[i];
 
+		
+
 		// If position error is above the threshold
 		if (abs(posError) > THRESHOLD && (setpos[i] != -1)) {
+
+			//LOG(LL_INFO, ("posError=%d  setpos[i]=%d   curpos[i]=%d", (int) posError, (int) setpos[i], (int) curpos[i] ));
 
 			//mgos_gpio_write(SR_OE, LOW);
 			moving = true;
@@ -356,6 +360,8 @@ void manageServos(float dt) {
 			// Determine whether to accelerate or decelerate
 			float acceleration = accell[i];
 			if ((0.5 * curvel[i] * curvel[i] / accell[i]) > abs(posError)) acceleration = -accell[i];
+
+			//LOG(LL_INFO, ("acceleration=%d", (int) acceleration));  
 
 			// Update the current velocity
 			if (dir) curvel[i] += acceleration * dt / 1000.0;
@@ -1119,7 +1125,7 @@ static void loop(void *arg) {
 enum mgos_app_init_result mgos_app_init(void) {
 
 
-	/*
+	
 	struct mgos_uart_config ucfg;
 	mgos_uart_config_set_defaults(mgos_sys_config_get_walle_uart_no(), &ucfg);
 	ucfg.baud_rate = mgos_sys_config_get_walle_uart_baudrate();
@@ -1130,8 +1136,10 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_uart_set_rx_enabled(mgos_sys_config_get_walle_uart_no(), true);
 
 	mp3_player.begin(mgos_sys_config_get_walle_uart_no());
-	*/
 
+	//Serial.println("Setting volume to max");
+  	mp3_player.volume(30);
+  	mp3_player.play(1);
 
 	/* Network connectivity events */
 	mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, net_cb, NULL);
