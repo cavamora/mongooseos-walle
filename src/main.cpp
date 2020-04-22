@@ -573,6 +573,20 @@ void evaluateCommand(const char command, int number) {
 		
 	}
 
+	// mp3 play
+	else if (command == '+') {		
+		LOG(LL_INFO, ("Testing mp3 : %d", number));	
+		mp3_player.playFolder(1,number);
+		
+	}
+
+	// mp3 play
+	else if (command == '-') {		
+		LOG(LL_INFO, ("Testing mp3 : %d", number));	
+		mp3_player.play(number);
+		
+	}
+
 	// Reset PWM
 	else if (command == ':') {		
 		LOG(LL_INFO, ("Reseting PWM"));	
@@ -1117,6 +1131,47 @@ static void loop(void *arg) {
 }
 
 
+/*
+ * Dispatcher can be invoked with any amount of data (even none at all) and
+ * at any time. Here we demonstrate how to process input line by line.
+ */
+static void uart_dispatcher(int uart_no, void *arg) {
+
+  static struct mbuf lb = {0};
+
+  assert(uart_no == mgos_sys_config_get_display_uart_no());
+  size_t rx_av = mgos_uart_read_avail(uart_no);
+  if (rx_av == 0) return;
+  mgos_uart_read_mbuf(uart_no, &lb, rx_av);
+
+
+  LOG(LL_INFO, ("UART%d> Received %d bytes", uart_no, (int) lb.len));
+
+  char buffer_hex[256];     //TODO deixar dinamico
+  //char buffer_hex_log[256]; //TODO deixar dinamico
+
+  memset(buffer_hex,0,sizeof(buffer_hex));
+  //memset(buffer_hex_log,0,sizeof(buffer_hex_log));
+
+  util_bin2str(lb.buf, buffer_hex,lb.len);
+
+  LOG(LL_INFO, ("UART%d>HEX: %s", uart_no, buffer_hex));
+
+  //mqtt_report(buffer_hex);
+
+  //sprintf(buffer_hex_log, "<<%s", buffer_hex);
+  // blynk_report(buffer_hex_log);
+
+  //mbuf_append(&buffer_in, lb.buf, lb.len);
+  //uart_process_response();
+
+
+  mbuf_remove(&lb, lb.len);
+
+  /* Finally, remove the line data from the buffer. */
+  (void) arg;
+}
+
 /******************************************************************************************************
  * STARTUP
 *******************************************************************************************************/
@@ -1132,10 +1187,21 @@ enum mgos_app_init_result mgos_app_init(void) {
 	if (!mgos_uart_configure(mgos_sys_config_get_walle_uart_no(), &ucfg)) {
 		return MGOS_APP_INIT_ERROR;
 	}
-	//mgos_uart_set_dispatcher(UART_NO, uart_dispatcher, NULL );
+	mgos_uart_set_dispatcher(mgos_sys_config_get_walle_uart_no(), uart_dispatcher, NULL ); //apenas para debug
 	mgos_uart_set_rx_enabled(mgos_sys_config_get_walle_uart_no(), true);
 
 	mp3_player.begin(mgos_sys_config_get_walle_uart_no());
+
+	//ESTATISTICAS MP3
+
+	mp3_player.playbackSource(TF);
+
+	int numFlashTracks = mp3_player.numFlashTracks();
+	int numTracksInFolder = mp3_player.numTracksInFolder(1);
+	int numFolders = mp3_player.numFolders();
+	
+	LOG(LL_INFO, ("Mp3 Stats: Folders:%d, FilesInFolder:%d, TotalFiles:%d", numFolders, numTracksInFolder, numFlashTracks));
+
 
 	//Serial.println("Setting volume to max");
   	mp3_player.volume(30);

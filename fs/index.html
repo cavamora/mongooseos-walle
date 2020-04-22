@@ -98,6 +98,15 @@
   </br>
 
   <div style="text-align:center;width:320px;">
+    Manual Mp3 Command</br> 
+    <input type="text" id="trackId" value="0">
+    <button onclick="sendCommandToMp3()">Send Mp3</button>
+    <button onclick="sendCommandToMp3Folder()">Send Mp3 Folder</button>
+  </div>  
+  </br>
+  </br>
+
+  <div style="text-align:center;width:320px;">
     <button onclick="window.location.href='setup.html'">Setup</button>
     </br>
   </div>
@@ -155,6 +164,28 @@
           var args = {
             cmd: document.getElementById("servoId").value , 
             val: parseInt(document.getElementById("servoPwd").value)  
+            }
+
+          execFunction(args);
+
+        }
+
+        function sendCommandToMp3() {
+
+          var args = {
+            cmd: '-', 
+            val: parseInt(document.getElementById("trackId").value)  
+            }
+
+          execFunction(args);
+
+        }
+
+        function sendCommandToMp3Folder() {
+
+          var args = {
+            cmd: '+', 
+            val: parseInt(document.getElementById("trackId").value)  
             }
 
           execFunction(args);
