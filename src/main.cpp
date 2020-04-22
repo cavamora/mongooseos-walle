@@ -221,6 +221,14 @@ void util_save_cfg() {
 }
 
 
+void debugInfo() {
+	int numFlashTracks = mp3_player.numFlashTracks();
+	int numTracksInFolder = mp3_player.numTracksInFolder(1);
+	int numFolders = mp3_player.numFolders();
+	
+	LOG(LL_INFO, ("Mp3 Stats: Folders:%d, FilesInFolder:%d, TotalFiles:%d", numFolders, numTracksInFolder, numFlashTracks));
+}
+
 
 /******************************************************************************************************
  * WALLE
@@ -593,6 +601,13 @@ void evaluateCommand(const char command, int number) {
 		restartPWM();
 		
 	}
+
+	// Reset PWM
+	else if (command == '?') {		
+		debugInfo();
+		
+	}
+
 
 	//manual comands to servos
 	else if (command == '0') {	
@@ -1177,6 +1192,7 @@ static void uart_dispatcher(int uart_no, void *arg) {
 *******************************************************************************************************/
 
 
+
 enum mgos_app_init_result mgos_app_init(void) {
 
 
@@ -1191,27 +1207,12 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_uart_set_rx_enabled(mgos_sys_config_get_walle_uart_no(), true);
 
 	mp3_player.begin(mgos_sys_config_get_walle_uart_no());
-
-	//ESTATISTICAS MP3
-
 	mp3_player.playbackSource(TF);
-
-	int numFlashTracks = mp3_player.numFlashTracks();
-	int numTracksInFolder = mp3_player.numTracksInFolder(1);
-	int numFolders = mp3_player.numFolders();
-	
-	LOG(LL_INFO, ("Mp3 Stats: Folders:%d, FilesInFolder:%d, TotalFiles:%d", numFolders, numTracksInFolder, numFlashTracks));
-
-
-	//Serial.println("Setting volume to max");
   	mp3_player.volume(30);
-  	mp3_player.play(1);
+  	mp3_player.playFolder(1,1);
 
 	/* Network connectivity events */
 	mgos_event_add_group_handler(MGOS_EVENT_GRP_NET, net_cb, NULL);
-
-	//botao flash para reset
-	//mgos_gpio_set_button_handler(0, MGOS_GPIO_PULL_UP, MGOS_GPIO_INT_EDGE_POS, 50, gpio_int_handler_flash, NULL);
 
 	//led for wifi state
 	mgos_gpio_set_mode(STATUS_LED_GPIO, MGOS_GPIO_MODE_OUTPUT);
@@ -1219,22 +1220,15 @@ enum mgos_app_init_result mgos_app_init(void) {
 	mgos_event_add_handler(MGOS_EVENT_CLOUD_CONNECTED, cloud_cb, NULL);
 	mgos_event_add_handler(MGOS_EVENT_CLOUD_DISCONNECTED, cloud_cb, NULL);
 
-	//blynk_set_handler(blynk_handler, NULL);
-
 	// Output Enable (EO) pin for the servo motors
 	mgos_gpio_set_mode(SR_OE, MGOS_GPIO_MODE_OUTPUT);
 	mgos_gpio_write(SR_OE, HIGH);
 
 	// Communicate with servo shield (Analog servos run at ~60Hz)
-	//pwm.begin();
 	mgos_PWMServoDriver_begin(pwm);
-  	//pwm.setPWMFreq(60);  // Analog servos run at ~60 Hz updates
 	mgos_PWMServoDriver_setPWMFreq(pwm, 60);  
 
 	LOG(LL_INFO, ("Starting Program"));
-
-	// Move servos to known starting positions
-	//queueAnimation(softSeq, SOFT_LEN);
 
 	ptr_timer_loop = mgos_set_timer(FREQUENCY, MGOS_TIMER_REPEAT, loop, NULL);
 
