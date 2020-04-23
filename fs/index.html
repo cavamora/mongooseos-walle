@@ -29,9 +29,12 @@
   </br>
 
 
-  <div style="text-align:center;width:320px;"> Servos</br>
-  <h3> Servo 1 </h3>
-  <input type="range" min="230" max="430" onmouseup="execFunction({'cmd': '0', 'val': parseInt(this.value)})" />
+  <div style="text-align:right;width:320px;"> 
+  Head        <input type="range" min="230" max="430" onmouseup="execFunction({'cmd': '0', 'val': parseInt(this.value)})"/></br> 
+  Neck Top    <input type="range" min="230" max="450" onmouseup="execFunction({'cmd': '1', 'val': parseInt(this.value)})"/></br> 
+  Neck Botton <input type="range" min="200" max="500" onmouseup="execFunction({'cmd': '2', 'val': parseInt(this.value)})"/></br> 
+  Arm Left    <input type="range" min="220" max="370" onmouseup="execFunction({'cmd': '5', 'val': parseInt(this.value)})"/></br> 
+  Arm Right   <input type="range" min="230" max="350" onmouseup="execFunction({'cmd': '6', 'val': parseInt(this.value)})"/></br> 
   </div>
   </br>
 
@@ -65,37 +68,7 @@
     </br> 
    
   </div>
-  </br>
-  </br>
 
-  <div style="text-align:center;width:320px;">
-    Animations</br> 
-    <button onclick="execFunction({'cmd': 'A', 'val': 0})">0</button>
-    <button onclick="execFunction({'cmd': 'A', 'val': 1})">1</button>
-    <button onclick="execFunction({'cmd': 'A', 'val': 2})">2</button>
-  </div>  
-  </br>
-  </br>
-
-  <div style="text-align:center;width:320px;">
-    Auto Servos</br> 
-    <button onclick="execFunction({'cmd': 'M', 'val': 0})">0</button>
-    <button onclick="execFunction({'cmd': 'M', 'val': 1})">1</button>
-  </div>  
-  </br>
-  </br>
-
-  <div style="text-align:center;width:320px;">
-    Test Servos</br> 
-  </br>
-  </br>
-    Manual Servo Command</br> 
-    <input type="text" id="servoId" value="0">
-    <input type="text" id="servoPwd" value="400">
-    <button onclick="sendCommandToServo()">Send Command</button>
-  </div>  
-  </br>
-  </br>
 
   <div style="text-align:center;width:320px;">
     Manual Mp3 Command</br> 
