@@ -30,11 +30,13 @@
 
 
   <div style="text-align:right;width:320px;"> 
-  Head        <input type="range" min="230" max="430" onmouseup="execFunction({'cmd': '0', 'val': parseInt(this.value)})"/></br> 
-  Neck Top    <input type="range" min="230" max="450" onmouseup="execFunction({'cmd': '1', 'val': parseInt(this.value)})"/></br> 
-  Neck Botton <input type="range" min="200" max="500" onmouseup="execFunction({'cmd': '2', 'val': parseInt(this.value)})"/></br> 
-  Arm Left    <input type="range" min="220" max="370" onmouseup="execFunction({'cmd': '5', 'val': parseInt(this.value)})"/></br> 
-  Arm Right   <input type="range" min="230" max="350" onmouseup="execFunction({'cmd': '6', 'val': parseInt(this.value)})"/></br> 
+  Head        <input type="range" min="230" max="430" onpointerup="execFunction({'cmd': '0', 'val': parseInt(this.value)})"/></br> 
+  Neck Top    <input type="range" min="230" max="450" onpointerup="execFunction({'cmd': '1', 'val': parseInt(this.value)})"/></br> 
+  Neck Botton <input type="range" min="200" max="500" onpointerup="execFunction({'cmd': '2', 'val': parseInt(this.value)})"/></br> 
+  Arm Left    <input type="range" min="220" max="370" onpointerup="execFunction({'cmd': '5', 'val': parseInt(this.value)})"/></br> 
+  Arm Right   <input type="range" min="230" max="350" onpointerup="execFunction({'cmd': '6', 'val': parseInt(this.value)})"/></br> 
+  Eye Right   <input type="range" min="300" max="500" onpointerup="execFunction({'cmd': '3', 'val': parseInt(this.value)})"/></br> 
+  Eye Left    <input type="range" min="300" max="440" onpointerup="execFunction({'cmd': '4', 'val': parseInt(this.value)})"/></br> 
   </div>
   </br>
 
@@ -68,11 +70,31 @@
     </br> 
    
   </div>
+  </br>
+
+  <div style="text-align:center;width:320px;">
+    Servo Animations</br> 
+    <button onclick="execFunction({'cmd': 'A', 'val':0})">0</button>
+    <button onclick="execFunction({'cmd': 'A', 'val':1})">1</button>
+    <button onclick="execFunction({'cmd': 'A', 'val':2})">2</button>
+    </br> 
+   
+  </div>
+  </br>  
+
+  <div style="text-align:center;width:320px;">
+    Servo Autonomos Mode</br> 
+    <button onclick="execFunction({'cmd': 'M', 'val':0})">Desligar</button>
+    <button onclick="execFunction({'cmd': 'M', 'val':1})">Ligar</button>
+    </br> 
+   
+  </div>
+</br>
 
 
   <div style="text-align:center;width:320px;">
     Manual Mp3 Command</br> 
-    <input type="text" id="trackId" value="0">
+    <input type="text" id="trackId" value="1">
     <button onclick="sendCommandToMp3Folder()">Send Mp3</button>
   </div>  
   </br>

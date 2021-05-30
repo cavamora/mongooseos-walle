@@ -118,8 +118,12 @@ int preset[][2] =  {{430, 230},   // head rotation		OK
 float curpos[] = { 248, 560, 140, 475, 270, 250, 290, 180, 180};  // Current position (units)
 float setpos[] = { 248, 560, 140, 475, 270, 250, 290,   0,   0};  // Required position (units)
 float curvel[] = {   0,   0,   0,   0,   0,   0,   0,   0,   0};  // Current velocity (units/sec)
-float maxvel[] = { 10000, 10000, 10000,10000,10000, 10000, 10000, 1000, 1000};  // Max Servo velocity (units/sec)
-float accell[] = { 10000, 10000, 10000,10000,10000, 10000, 10000,2000,2000};  // Servo acceleration (units/sec^2)
+
+//float maxvel[] = { 10000, 10000, 10000,10000,10000, 10000, 10000, 1000, 1000};  // Max Servo velocity (units/sec)
+//float accell[] = { 10000, 10000, 10000,10000,10000, 10000, 10000,2000,2000};  // Servo acceleration (units/sec^2)
+
+float maxvel[] = { 500, 400, 500,2400,2400, 600, 600, 10000, 10000};  // Max Servo velocity (units/sec)
+float accell[] = { 350, 300, 480,1800,1800, 500, 500, 10000, 10000};  // Servo acceleration (units/sec^2)
 
 int   i2cPins[] = {  0,   1,   2,   3,   4,   5,   6,   8,   9};  // Pins on I2C Board
 
